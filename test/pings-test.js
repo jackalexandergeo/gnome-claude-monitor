@@ -21,7 +21,7 @@ const NOW = 1_800_000_000_000;
 function issue(fields) {
     return Object.assign({
         id: 1, name: '[demo-project]: Build server disk full', status: 'new', kind: 'issue',
-        source: 'chat', url: 'https://chat.example/team/pl/p1', links: {},
+        source: 'chat', url: 'https://chat.example/thread/1', links: {},
         lastPing: { author: 'alex', preview: 'can you check the disk?' },
     }, fields);
 }
