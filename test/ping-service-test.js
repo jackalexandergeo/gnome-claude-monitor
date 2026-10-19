@@ -1,6 +1,7 @@
 #!/usr/bin/env gjs -m
 // Tests for PingService's file handling. Run: gjs -m test/ping-service-test.js
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 
 // Before the service module loads: it resolves its directory from XDG_STATE_HOME.
 const stateHome = GLib.dir_make_tmp('ping-service-test-XXXXXX');
@@ -188,6 +189,46 @@ unlocked.stop();
     await afterNewest.refreshNow();
     check('dismissing the newest settles it', raisedAfterNewest.length === 0);
     afterNewest.stop();
+}
+
+// decide() talks HTTP over the hub's Unix socket: check the path, the body and an error.
+{
+    const socketPath = GLib.build_filenamev([stateHome, 'hub.sock']);
+    const listener = new Gio.SocketListener();
+    listener.add_address(Gio.UnixSocketAddress.new(socketPath), Gio.SocketType.STREAM, Gio.SocketProtocol.DEFAULT, null);
+    let request = '';
+    // Everything async: the client runs on this same main loop, so a blocking read here
+    // would wait forever for a request that can never be sent.
+    listener.accept_async(null, (_listener, result) => {
+        const connection = listener.accept_finish(result)[0];
+        // Read until the headers and Content-Length bytes of body are in: the client may
+        // send them as separate writes.
+        const readMore = () => connection.get_input_stream().read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null,
+            (input, readResult) => {
+                const chunk = input.read_bytes_finish(readResult).toArray();
+                request += new TextDecoder().decode(chunk);
+                const headerEnd = request.indexOf('\r\n\r\n');
+                const length = Number(/content-length: *(\d+)/i.exec(request)?.[1] ?? 0);
+                if (chunk.length > 0 && (headerEnd < 0 || request.length - headerEnd - 4 < length)) {
+                    readMore();
+                    return;
+                }
+                const body = '{"error": "nothing is waiting on a ticket decision for this issue"}';
+                connection.get_output_stream().write_all(new TextEncoder().encode(
+                    `HTTP/1.0 409 Conflict\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\n\r\n${body}`), null);
+                connection.close(null);
+            });
+        readMore();
+    });
+    const deciding = new PingService();
+    const answer = await deciding.decide(socketPath, 7, 'ticket', true);
+    check('decide POSTs to the issue\'s decisions path', request.startsWith('POST /v1/issues/7/decisions'));
+    check('with the gate and the answer', request.includes('{"gate":"ticket","approve":true}'));
+    check('and hands back the hub\'s refusal', answer.status === 409 && answer.error === 'nothing is waiting on a ticket decision for this issue');
+    const nowhere = await deciding.decide(GLib.build_filenamev([stateHome, 'nothing.sock']), 7, 'ticket', true);
+    check('an unreachable hub is an error too, not silence', nowhere.status === 0 && nowhere.error);
+    deciding.stop();
+    listener.close();
 }
 
 // A change written while a refresh is still running must not be lost: the refresh

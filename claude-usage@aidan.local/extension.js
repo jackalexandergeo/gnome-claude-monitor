@@ -36,7 +36,8 @@ export default class ClaudeUsageExtension extends Extension {
 
         // pingwatch Issues: a button of its own, hidden unless pingwatch runs on this machine.
         this._pingService = new PingService();
-        this._pingIndicator = new PingIndicator(this._pingService, this.path);
+        this._pingIndicator = new PingIndicator(this._pingService, this.path,
+            (title, body) => this._notify({ title, body, url: null, pending: [] }));
         this._bannerByIssue = new Map();   // issue id -> its newest needs-you notification
         Main.panel.addToStatusArea(`${this.uuid}-pings`, this._pingIndicator);
         this._placePingIndicator();

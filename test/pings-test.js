@@ -88,6 +88,9 @@ check('actions in order: thread, ticket, MR, agent',
 check('actions drop non-web URLs and unsafe session ids', full.length === 4);
 check('no url, no thread action', issueActions(issue({ url: null })).length === 0);
 const deciding = issueActions(issue({ url: null, awaiting: ['research', 'ticket', 'everything', 'constructor'] }));
+check('each answer says what it will do',
+    deciding.every(action => typeof action.consequence === 'string' && action.consequence.length > 10) &&
+    deciding.find(action => action.label === "Don't file it").consequence === 'No ticket is filed for this issue.');
 check('a waiting review offers its two answers, and only for known gates',
     deciding.map(action => action.label).join('|') === "Accept the research|Send it back|File the ticket|Don't file it" &&
     deciding.every(action => action.kind === 'decision'));

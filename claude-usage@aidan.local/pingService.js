@@ -243,22 +243,30 @@ export class PingService {
      */
     async decide(socketPath, issueId, gate, approve) {
         if (!socketPath || !Number.isInteger(issueId))
-            return 0;
+            return { status: 0, error: 'pingwatch did not say where to send decisions' };
         const session = new Soup.Session({ remote_connectable: Gio.UnixSocketAddress.new(socketPath), timeout: 10 });
         const message = Soup.Message.new('POST', `http://pingwatch/v1/issues/${issueId}/decisions`);
         message.set_request_body_from_bytes('application/json',
             new GLib.Bytes(this._encoder.encode(JSON.stringify({ gate, approve }))));
+        let bytes;
         try {
-            await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+            bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
         } catch (error) {
             logError(error, `claude-usage: could not send the ${gate} decision to pingwatch`);
-            return 0;
+            return { status: 0, error: error.message };
         }
         const status = message.get_status();
-        if (status !== 200)
-            log(`claude-usage: pingwatch answered ${status} to the ${gate} decision for issue ${issueId}`);
+        let error = null;
+        if (status !== 200) {
+            try {
+                error = JSON.parse(this._decoder.decode(bytes.toArray())).error ?? null;
+            } catch (_parseError) {
+            }
+            error = error || `HTTP ${status}`;
+            log(`claude-usage: pingwatch answered ${status} to the ${gate} decision for issue ${issueId}: ${error}`);
+        }
         this.refreshNow();
-        return status;
+        return { status, error };
     }
 
     openURL(url) {

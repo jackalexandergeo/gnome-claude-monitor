@@ -9,6 +9,8 @@ import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 
+import * as Dialog from 'resource:///org/gnome/shell/ui/dialog.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
@@ -27,9 +29,10 @@ const EMPHASIS_STYLE = {
 
 export const PingIndicator = GObject.registerClass(
 class PingIndicator extends PanelMenu.Button {
-    _init(service, extensionPath) {
+    _init(service, extensionPath, onProblem) {
         super._init(0.0, 'pingwatch Issues');
         this._service = service;
+        this._onProblem = onProblem;   // (title, body): tell the user something did not happen
 
         // ---- compact panel: [chat icon] open-count ----
         this._box = new St.BoxLayout({ style_class: 'panel-status-menu-box claude-panel-box' });
@@ -174,8 +177,34 @@ class PingIndicator extends PanelMenu.Button {
             else if (action.kind === 'session')
                 this._service.attachSession(action.sessionId);
             else if (action.kind === 'decision')
-                this._service.decide(state?.hubSocket, issue.id, action.gate, action.approve);
+                this._confirmDecision(action, issue, state);
         });
         return item;
+    }
+
+    // Filing a ticket, opening an MR or dropping one does not come undone: say what the
+    // answer will do and wait for a second, deliberate click.
+    _confirmDecision(action, issue, state) {
+        const dialog = new ModalDialog.ModalDialog({ styleClass: 'pingwatch-confirm' });
+        const question = typeof issue.question === 'string' && issue.question ? `${issue.question}\n\n` : '';
+        dialog.contentLayout.add_child(new Dialog.MessageDialogContent({
+            title: `${action.label}?`,
+            description: `${issue.name}\n\n${question}${action.consequence}`,
+        }));
+        dialog.setButtons([
+            { label: 'Cancel', action: () => dialog.close(), key: Clutter.KEY_Escape },
+            {
+                label: action.label,
+                default: true,
+                action: () => {
+                    dialog.close();
+                    this._service.decide(state?.hubSocket, issue.id, action.gate, action.approve).then(result => {
+                        if (result.status !== 200)
+                            this._onProblem?.(`Not done: ${action.label}`, `${issue.name}: ${result.error}`);
+                    });
+                },
+            },
+        ]);
+        dialog.open();
     }
 });

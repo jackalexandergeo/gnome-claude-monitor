@@ -40,6 +40,12 @@ const DECISION_LABELS = {
     ticket: ['File the ticket', "Don't file it"],
     change: ['Open the draft MR', 'Drop the change'],
 };
+// What each answer does, said in the confirmation before it is sent.
+const DECISION_CONSEQUENCES = {
+    research: ['The pipeline goes on with this research as it is.', "The research runs again with the reviewer's notes."],
+    ticket: ['Files the ticket.', 'No ticket is filed for this issue.'],
+    change: ['Pushes the branch and opens a draft MR.', 'The change is dropped; no MR is opened.'],
+};
 
 /** Parse state.json text. Returns null when it is missing, malformed or a newer format. */
 export function parseState(text) {
@@ -174,8 +180,9 @@ export function issueActions(issue) {
         if (!Object.hasOwn(DECISION_LABELS, gate))
             continue;
         const [approveLabel, rejectLabel] = DECISION_LABELS[gate];
-        actions.push({ kind: 'decision', label: approveLabel, gate, approve: true });
-        actions.push({ kind: 'decision', label: rejectLabel, gate, approve: false });
+        const [approveConsequence, rejectConsequence] = DECISION_CONSEQUENCES[gate];
+        actions.push({ kind: 'decision', label: approveLabel, gate, approve: true, consequence: approveConsequence });
+        actions.push({ kind: 'decision', label: rejectLabel, gate, approve: false, consequence: rejectConsequence });
     }
     return actions;
 }
