@@ -39,7 +39,7 @@ export class PingService {
         this._announced = undefined;   // undefined: not loaded yet; null: nothing remembered
         this._announcedText = null;
         this._lastSnapshot = null;
-        this._pending = new Map();   // issue id -> {count, baseline}: needs-you banners not yet dismissed
+        this._pending = new Map();   // issue id -> {sequence, baseline}: its newest needs-you banner, unread
         // Saves run one after another and are not cancelled by stop(): the shell disables
         // the extension on lock, and the last save is the one that matters then.
         this._saveChain = Promise.resolve();
@@ -164,12 +164,15 @@ export class PingService {
             // Nothing remembered (first ever start): take what is there as already seen.
             notifications = limitNotifications(notificationsBetween(this._announced, next));
             for (const notification of notifications) {
-                for (const { id, baseline } of notification.pending) {
-                    const entry = this._pending.get(id);
+                for (const item of notification.pending) {
+                    // Only an issue's newest banner settles it: an older one is replaced
+                    // (or evicted), and reading the newest means the user has seen it.
+                    const entry = this._pending.get(item.id);
                     if (entry)
-                        entry.count++;   // keep the earliest baseline
+                        entry.sequence++;   // keep the earliest baseline
                     else
-                        this._pending.set(id, { count: 1, baseline });
+                        this._pending.set(item.id, { sequence: 1, baseline: item.baseline });
+                    item.sequence = this._pending.get(item.id).sequence;
                 }
             }
             this._announced = stateFromAnnounced(announcedMap(next));
@@ -198,10 +201,9 @@ export class PingService {
 
     /** The user dismissed (or clicked) a notification: what it was pending for is settled. */
     acknowledge(pending) {
-        for (const { id } of pending) {
-            const entry = this._pending.get(id);
-            if (entry && --entry.count <= 0)
-                this._pending.delete(id);
+        for (const { id, sequence } of pending) {
+            if (this._pending.get(id)?.sequence === sequence)
+                this._pending.delete(id);   // an older banner's dismissal settles nothing
         }
         this._saveAnnounced();
     }

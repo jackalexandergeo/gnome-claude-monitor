@@ -154,6 +154,42 @@ check('dismissing an older banner leaves a newer needs-you pending',
     raisedAtUnlock.length === 1 && raisedAtUnlock[0].title.startsWith('Needs you:'));
 unlocked.stop();
 
+// Only an issue's newest banner settles it: dismissing an older one (its question has
+// since changed) leaves it pending, dismissing the newest settles it.
+{
+    write(JSON.stringify({ version: 1, updatedAt: Date.now(), counts: { open: 0 }, issues: [], otherPings: [] }));
+    const watcher = new PingService();
+    const banners = [];
+    watcher.connect(payload => banners.push(...payload.notifications));
+    await watcher.refreshNow();
+    const asking = question => JSON.stringify({
+        version: 1, updatedAt: Date.now(), counts: { open: 1 }, otherPings: [],
+        issues: [{ id: 1, name: '[demo]: Disk full', status: 'needs-you', kind: 'issue', question }],
+    });
+    write(asking('first question'));
+    await watcher.refreshNow();
+    write(asking('second question'));
+    await watcher.refreshNow();
+    check('a changed question raises a second banner', banners.length === 2);
+    watcher.acknowledge(banners[0].pending);   // the older one
+    watcher.stop();
+    await watcher.flushed();
+    const afterOlder = new PingService();
+    const raisedAfterOlder = [];
+    afterOlder.connect(payload => raisedAfterOlder.push(...payload.notifications));
+    await afterOlder.refreshNow();
+    check('dismissing the older banner leaves the issue pending', raisedAfterOlder.length === 1);
+    afterOlder.acknowledge(raisedAfterOlder[0].pending);   // now the newest
+    afterOlder.stop();
+    await afterOlder.flushed();
+    const afterNewest = new PingService();
+    const raisedAfterNewest = [];
+    afterNewest.connect(payload => raisedAfterNewest.push(...payload.notifications));
+    await afterNewest.refreshNow();
+    check('dismissing the newest settles it', raisedAfterNewest.length === 0);
+    afterNewest.stop();
+}
+
 // A change written while a refresh is still running must not be lost: the refresh
 // asked for meanwhile runs right after, and announces it exactly once.
 write(snapshot('new'));
