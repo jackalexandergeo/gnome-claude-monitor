@@ -15,6 +15,7 @@ export const NEEDS_YOU_STATUSES = new Set(['needs-you']);
 
 // More changes than this at once (a long lock, a week away) become one summary banner.
 export const MAX_NOTIFICATIONS_AT_ONCE = 4;
+const NEEDS_YOU_PREFIX = 'Needs you: ';
 
 const STATUS_LABELS = {
     'triaging': 'triaging',
@@ -148,7 +149,7 @@ export function notificationsBetween(previous, next) {
         const old = before.get(issue.id);
         if (needsYou(issue) && !(old && needsYou(old))) {
             notifications.push({
-                title: `Needs you: ${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url, issueIds: [issue.id],
+                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url, issueIds: [issue.id],
             });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
@@ -158,10 +159,18 @@ export function notificationsBetween(previous, next) {
     return notifications;
 }
 
-/** At most MAX_NOTIFICATIONS_AT_ONCE banners; the rest are folded into one summary. */
+/**
+ * At most MAX_NOTIFICATIONS_AT_ONCE banners; the rest fold into one summary. "Needs you"
+ * comes first, so a burst of new issues can never fold away the one that waits on you.
+ */
 export function limitNotifications(notifications) {
     if (notifications.length <= MAX_NOTIFICATIONS_AT_ONCE)
         return notifications;
+    const ordered = [
+        ...notifications.filter(notification => notification.title.startsWith(NEEDS_YOU_PREFIX)),
+        ...notifications.filter(notification => !notification.title.startsWith(NEEDS_YOU_PREFIX)),
+    ];
+    notifications = ordered;
     const shown = notifications.slice(0, MAX_NOTIFICATIONS_AT_ONCE - 1);
     const folded = notifications.slice(shown.length);
     return [...shown, {
