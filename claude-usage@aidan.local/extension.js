@@ -80,10 +80,17 @@ export default class ClaudeUsageExtension extends Extension {
     }
 
     // One source for every pingwatch notification. The shell destroys a source once its
-    // last notification is dismissed, so it is recreated on demand.
+    // last notification is gone, so it is recreated on demand.
     _notify({ title, body, url, pending }) {
         if (!this._pingService)
             return;   // disabled: nothing may outlive disable(), not even a new source
+        const ids = (pending ?? []).map(item => item.id);
+        // Before adding, or a superseded banner holds a queue or per-source slot the new one needs.
+        // REPLACED is not a dismissal, so nothing is acknowledged by it.
+        for (const banner of this._banners.superseded(ids)) {
+            if (this._notificationSource?.notifications.includes(banner))
+                banner.destroy(MessageTray.NotificationDestroyedReason.REPLACED);
+        }
         if (!this._notificationSource) {
             this._notificationSource = new MessageTray.Source({ title: 'pingwatch', iconName: 'mail-unread-symbolic' });
             this._notificationSource.connect('destroy', () => {
@@ -92,7 +99,7 @@ export default class ClaudeUsageExtension extends Extension {
             Main.messageTray.add(this._notificationSource);
         }
         const notification = new MessageTray.Notification({ source: this._notificationSource, title, body });
-        const replaced = this._banners.replaceWith(notification, (pending ?? []).map(item => item.id));
+        this._banners.record(notification, ids);
         if (url)
             notification.connect('activated', () => this._pingService?.openURL(url));
         // Only the user's own dismissal (or click) settles a needs-you. Cleared by a lock or a
@@ -103,10 +110,6 @@ export default class ClaudeUsageExtension extends Extension {
                 this._pingService?.acknowledge(pending ?? []);
         });
         this._notificationSource.addNotification(notification);
-        // Only now: destroying the source's last notification would destroy the source with it.
-        // REPLACED is not a dismissal, so nothing is acknowledged by it.
-        for (const banner of replaced)
-            banner.destroy(MessageTray.NotificationDestroyedReason.REPLACED);
     }
 
     // Keep the Issues button right after the usage indicator, wherever that sits.

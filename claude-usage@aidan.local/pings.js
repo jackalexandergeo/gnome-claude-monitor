@@ -293,25 +293,32 @@ export function stateFromAnnounced(map) {
 /**
  * Which notification is each issue's newest banner. Kept out of the Shell code so it can be
  * tested: replacing must never destroy a banner another issue still needs (a summary banner
- * covers several issues), and the caller adds the new banner before destroying the older ones
- * (destroying a source's last notification destroys the source itself).
+ * covers several issues), and the caller destroys the superseded banners before adding the
+ * new one, so they never take a queue or per-source slot from it.
  */
 export class BannerBook {
     constructor() {
         this._byIssue = new Map();
     }
 
-    /** Record `banner` as the newest for `ids`; returns the older banners nobody needs now. */
-    replaceWith(banner, ids) {
+    /** The older banners a new one for `ids` leaves no issue needing. */
+    superseded(ids) {
         const older = new Set();
         for (const id of ids) {
-            const previous = this._byIssue.get(id);
-            if (previous && previous !== banner)
-                older.add(previous);
-            this._byIssue.set(id, banner);
+            if (this._byIssue.has(id))
+                older.add(this._byIssue.get(id));
         }
-        const stillNeeded = new Set(this._byIssue.values());
-        return [...older].filter(previous => !stillNeeded.has(previous));
+        for (const [id, banner] of this._byIssue) {
+            if (!ids.includes(id))
+                older.delete(banner);
+        }
+        return [...older];
+    }
+
+    /** Record `banner` as the newest for `ids`. */
+    record(banner, ids) {
+        for (const id of ids)
+            this._byIssue.set(id, banner);
     }
 
     forget(banner) {
