@@ -104,6 +104,11 @@ export default class ClaudeUsageExtension extends Extension {
     _reposition() {
         if (!this._indicator || !this._settings)
             return;
+        // The Issues button follows the usage one; out of the box while placing, or it is
+        // counted and indexed as a neighbour and a one-step move is swallowed.
+        const pingContainer = this._pingIndicator?.container;
+        pingContainer?.get_parent()?.remove_child(pingContainer);
+
         const container = this._indicator.container;
         const parent = container.get_parent();
         if (parent)
