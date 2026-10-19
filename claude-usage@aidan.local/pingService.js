@@ -281,6 +281,23 @@ export class PingService {
         return { status, error };
     }
 
+    /**
+     * Open the issue's card on the board. The hub hands out a link with a sign-in code
+     * that works once, so it is asked each time. Resolves to { status, error }.
+     */
+    async openOnBoard(socketPath, issueId) {
+        if (!Number.isInteger(issueId))
+            return { status: 0, error: 'pingwatch did not say which issue this is' };
+        const { status, body, error } = await this._post(socketPath, `/v1/issues/${issueId}/board-link`, {},
+            `the board link for issue ${issueId}`);
+        if (error)
+            return { status, error };
+        if (typeof body?.url !== 'string' || !/^https?:\/\//.test(body.url))
+            return { status: 0, error: 'pingwatch sent a board link that is not a web address' };
+        this.openURL(body.url);
+        return { status, error: null };
+    }
+
     openURL(url) {
         try {
             Gio.AppInfo.launch_default_for_uri(url, null);

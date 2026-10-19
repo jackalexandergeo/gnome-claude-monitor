@@ -180,6 +180,11 @@ class PingIndicator extends PanelMenu.Button {
                 this._service.openURL(action.url);
             else if (action.kind === 'session')
                 this._service.attachSession(action.sessionId);
+            else if (action.kind === 'board')
+                this._service?.openOnBoard(state?.hubSocket, issue?.id).then(result => {
+                    if (result.error)
+                        this._onProblem?.('Could not open the board', `${issue.name}: ${result.error}`);
+                });
             else if (action.kind === 'decision')
                 this._confirmDecision(action, issue, state);
         });

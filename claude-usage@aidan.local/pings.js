@@ -185,6 +185,8 @@ export function issueActions(issue) {
         if (mergeRequest && isWebURL(mergeRequest.url))
             actions.push({ kind: 'url', label: `MR ${mergeRequest.reference || ''}`.trim(), url: mergeRequest.url });
     }
+    if (issue.onBoard === true)
+        actions.push({ kind: 'board', label: 'Open on the board' });
     for (const session of Array.isArray(links.sessions) ? links.sessions : []) {
         if (session && SESSION_ID_PATTERN.test(session.sessionId || ''))
             actions.push({ kind: 'session', label: `Agent: ${session.role || 'session'}`, sessionId: session.sessionId });

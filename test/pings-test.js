@@ -105,6 +105,10 @@ check('each answer says what it will do',
 check('a waiting review offers its two answers, and only for known gates',
     deciding.map(action => action.label).join('|') === "Accept the research|Send it back|File the ticket|Don't file it" &&
     deciding.every(action => action.kind === 'decision'));
+const boarded = issueActions(issue({ url: null, onBoard: true }));
+check('an issue with a card offers to open it on the board',
+    boarded.length === 1 && boarded[0].kind === 'board' && boarded[0].label === 'Open on the board' &&
+    issueActions(issue({ url: null, onBoard: 'yes' })).length === 0);
 const scoping = issueActions(issue({ url: null, awaiting: ['scope'] }));
 check('an issue that may be someone else\'s offers to start anyway or leave it',
     scoping.map(action => action.label).join('|') === 'Start anyway|Leave it to them' &&

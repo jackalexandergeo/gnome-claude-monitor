@@ -235,6 +235,56 @@ unlocked.stop();
     listener.close();
 }
 
+// openOnBoard() asks the hub for a one-time link each time and opens only a web address.
+{
+    const socketPath = GLib.build_filenamev([stateHome, 'board-hub.sock']);
+    const listener = new Gio.SocketListener();
+    listener.add_address(Gio.UnixSocketAddress.new(socketPath), Gio.SocketType.STREAM, Gio.SocketProtocol.DEFAULT, null);
+    const answers = [
+        ['200 OK', '{"url": "http://127.0.0.1:4321/?code=once#card=c7"}'],
+        ['200 OK', '{"url": "file:///etc/passwd"}'],
+        ['404 Not Found', '{"error": "issue 7 has no card on the board"}'],
+    ];
+    const requests = [];
+    const serveNext = () => listener.accept_async(null, (_listener, result) => {
+        const connection = listener.accept_finish(result)[0];
+        let request = '';
+        const readMore = () => connection.get_input_stream().read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null,
+            (input, readResult) => {
+                const chunk = input.read_bytes_finish(readResult).toArray();
+                request += new TextDecoder().decode(chunk);
+                const headerEnd = request.indexOf('\r\n\r\n');
+                const length = Number(/content-length: *(\d+)/i.exec(request)?.[1] ?? 0);
+                if (chunk.length > 0 && (headerEnd < 0 || request.length - headerEnd - 4 < length)) {
+                    readMore();
+                    return;
+                }
+                requests.push(request);
+                const [statusLine, body] = answers.shift();
+                connection.get_output_stream().write_all(new TextEncoder().encode(
+                    `HTTP/1.0 ${statusLine}\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\n\r\n${body}`), null);
+                connection.close(null);
+                if (answers.length)
+                    serveNext();
+            });
+        readMore();
+    });
+    serveNext();
+    const boarding = new PingService();
+    const opened = [];
+    boarding.openURL = url => opened.push(url);
+    const first = await boarding.openOnBoard(socketPath, 7);
+    check('openOnBoard POSTs to the issue\'s board-link path', requests[0].startsWith('POST /v1/issues/7/board-link'));
+    check('and opens the link it got', first.error === null && opened.join() === 'http://127.0.0.1:4321/?code=once#card=c7');
+    const notWeb = await boarding.openOnBoard(socketPath, 7);
+    check('a link that is not a web address is not opened', notWeb.error && opened.length === 1);
+    const noCard = await boarding.openOnBoard(socketPath, 7);
+    check('the hub\'s reason comes back when there is no card', noCard.status === 404 &&
+        noCard.error === 'issue 7 has no card on the board');
+    boarding.stop();
+    listener.close();
+}
+
 // A change written while a refresh is still running must not be lost: the refresh
 // asked for meanwhile runs right after, and announces it exactly once.
 write(snapshot('new'));
