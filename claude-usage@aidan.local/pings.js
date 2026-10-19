@@ -89,16 +89,29 @@ function parseSources(sources) {
     return parsed;
 }
 
-/** One line per source that is unhealthy or has gone quiet, worst news first. */
+const SOURCE_DETAIL_CHARACTERS = 80;
+const SOURCE_WARNINGS_SHOWN = 2;
+
+/** Short lines for sources that are unhealthy (first) or have gone quiet, then "+N more". */
 export function sourceWarnings(state, now) {
-    const warnings = [];
+    const unhealthy = [];
+    const silent = [];
     for (const [name, source] of Object.entries(state?.sources ?? {})) {
-        if (!source.ok)
-            warnings.push(`⚠ ${name}: ${source.detail || 'unhealthy'}`);
-        else if (now - source.at > SOURCE_SILENT_AFTER_MS)
-            warnings.push(`⚠ ${name}: no heartbeat for ${formatAgo(now - source.at).replace(' ago', '')}`);
+        if (!source.ok) {
+            let detail = source.detail || 'unhealthy';
+            if (detail.length > SOURCE_DETAIL_CHARACTERS)
+                detail = `${detail.slice(0, SOURCE_DETAIL_CHARACTERS - 1)}…`;
+            unhealthy.push(`⚠ ${name}: ${detail}`);
+        } else if (!source.at) {
+            silent.push(`⚠ ${name}: no heartbeat yet`);
+        } else if (now - source.at > SOURCE_SILENT_AFTER_MS) {
+            silent.push(`⚠ ${name}: no heartbeat for ${formatAgo(now - source.at).replace(' ago', '')}`);
+        }
     }
-    return warnings;
+    const warnings = [...unhealthy, ...silent];
+    if (warnings.length <= SOURCE_WARNINGS_SHOWN)
+        return warnings;
+    return [...warnings.slice(0, SOURCE_WARNINGS_SHOWN), `+${warnings.length - SOURCE_WARNINGS_SHOWN} more`];
 }
 
 function isIssueLike(issue) {

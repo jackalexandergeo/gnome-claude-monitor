@@ -55,7 +55,8 @@ class PingIndicator extends PanelMenu.Button {
         // ---- dropdown: header, one submenu per issue, other pings ----
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem('Issues'));
         this._header = new PopupMenu.PopupMenuItem('', { reactive: false });
-        this._header.label.style_class = 'claude-status-line';
+        this._header.label.style_class = 'claude-status-line pingwatch-preview';   // wraps, never widens
+        this._header.label.clutter_text.line_wrap = true;
         this.menu.addMenuItem(this._header);
         this._issuesSection = new PopupMenu.PopupMenuSection();
         this.menu.addMenuItem(this._issuesSection);

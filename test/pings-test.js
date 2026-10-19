@@ -72,6 +72,13 @@ check('a silent source says for how long',
 check('malformed sources are ignored',
     Object.keys(withSources({ a: null, b: 'x', c: { ok: 'yes' }, d: { ok: true, at: NOW } }).sources).join() === 'd' &&
     Object.keys(withSources(['x']).sources).length === 0);
+check('unhealthy sources come first, then silent ones, and the rest fold',
+    sourceWarnings(withSources({
+        quiet: { ok: true, at: NOW - 12 * 60_000 }, broken: { ok: false, detail: 'x'.repeat(300), at: NOW },
+        also: { ok: false, detail: 'down', at: NOW }, never: { ok: true },
+    }), NOW).join('|') === `⚠ broken: ${'x'.repeat(79)}…|⚠ also: down|+2 more`);
+check('a source that never beat says so, not 20000 days',
+    sourceWarnings(withSources({ chat: { ok: true } }), NOW)[0] === '⚠ chat: no heartbeat yet');
 check('the header leads with the warning',
     headerLine(withSources({ chat: { ok: false, detail: 'login expired', at: NOW } }), NOW).startsWith('⚠ chat: login expired  ·  Picked up today'));
 
@@ -140,6 +147,8 @@ check('a pending needs-you is remembered as it was before',
 check('a pending issue is always remembered, as its baseline',
     announcedMap(state({ issues: [issue({ id: 1, status: 'needs-you' })] }),
         new Map([[1, { status: null, kind: 'issue', question: null }]]))[1].kind === 'issue');
+check('an empty question is not news either',
+    notificationsBetween(waiting, state({ issues: [issue({ status: 'needs-you', question: '' })] })).length === 0);
 check('a question going away does not pop up',
     notificationsBetween(waiting, state({ issues: [issue({ status: 'needs-you', question: null })] })).length === 0);
 check('an issue first seen needing you, once answered, is not a "New issue" later',
