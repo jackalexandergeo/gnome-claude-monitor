@@ -106,6 +106,8 @@ class PingIndicator extends PanelMenu.Button {
                 y_align: Clutter.ActorAlign.CENTER,
             });
             item.insert_child_above(status, item.label);
+            // label_actor is only the name; screen readers should hear the status too
+            item.accessible_name = `${issue.name}, ${statusLabel(issue.status)}`;
             if (needsYou(issue)) {
                 item.label.style = EMPHASIS_STYLE.alert;
                 status.style = EMPHASIS_STYLE.alert;
@@ -137,13 +139,22 @@ class PingIndicator extends PanelMenu.Button {
         this._otherPings.label.text = `Other pings (${state.otherPings.length})`;
         this._otherPings.visible = others.length > 0;
         for (const issue of others) {
-            const when = issue.updatedAt ? ` · ${formatAgo(now - issue.updatedAt)}` : '';
             const thread = issueActions(issue).find(action => action.kind === 'url');
-            const text = `${issue.kind || '?'} · ${issue.name}${when}`;
+            const text = `${issue.kind || '?'} · ${issue.name}`;
             const row = thread
                 ? this._actionItem({ ...thread, label: text })
                 : new PopupMenu.PopupMenuItem(text, { reactive: false });
             row.label.add_style_class_name('pingwatch-issue-label');
+            if (issue.updatedAt) {
+                // its own label, like an issue's status: the capped text is what ellipsizes
+                const age = new St.Label({
+                    text: `·  ${formatAgo(now - issue.updatedAt)}`,
+                    style_class: 'pingwatch-issue-status',
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                row.insert_child_above(age, row.label);
+                row.accessible_name = `${text}, ${age.text.slice(3)}`;
+            }
             this._otherPings.menu.addMenuItem(row);
         }
     }
