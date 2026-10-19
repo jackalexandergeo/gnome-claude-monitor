@@ -3,7 +3,7 @@
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
-    announcedMap, stateFromAnnounced,
+    announcedMap, stateFromAnnounced, sourceWarnings,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -60,6 +60,20 @@ check('a stale snapshot keeps the needs-you alert',
 check('header lists counts', headerLine(state({}), NOW) === 'Picked up today: 2 · total: 9 · need you: 0');
 check('header warns when stale', headerLine(state({}), NOW + STALE_AFTER_MS + 1).startsWith('⚠ hub not responding'));
 check('header mentions untriaged', headerLine(state({ counts: { today: 0, total: 0, open: 0, untriaged: 3 } }), NOW).includes('untriaged: 3'));
+
+// source heartbeats
+const withSources = sources => parseState(JSON.stringify({ version: 1, updatedAt: NOW, sources }));
+check('a healthy, recent source says nothing',
+    sourceWarnings(withSources({ chat: { ok: true, at: NOW - 30_000 } }), NOW).length === 0);
+check('an unhealthy source says why',
+    sourceWarnings(withSources({ chat: { ok: false, detail: 'login expired', at: NOW } }), NOW)[0] === '⚠ chat: login expired');
+check('a silent source says for how long',
+    sourceWarnings(withSources({ chat: { ok: true, at: NOW - 12 * 60_000 } }), NOW)[0] === '⚠ chat: no heartbeat for 12m');
+check('malformed sources are ignored',
+    Object.keys(withSources({ a: null, b: 'x', c: { ok: 'yes' }, d: { ok: true, at: NOW } }).sources).join() === 'd' &&
+    Object.keys(withSources(['x']).sources).length === 0);
+check('the header leads with the warning',
+    headerLine(withSources({ chat: { ok: false, detail: 'login expired', at: NOW } }), NOW).startsWith('⚠ chat: login expired  ·  Picked up today'));
 
 // actions
 const full = issueActions(issue({

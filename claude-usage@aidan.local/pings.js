@@ -57,6 +57,7 @@ export function parseState(text) {
         updatedAt: Number(state.updatedAt) || 0,
         // where to send decisions; only an absolute path is taken
         hubSocket: typeof state.hub?.socket === 'string' && state.hub.socket.startsWith('/') ? state.hub.socket : null,
+        sources: parseSources(state.sources),
         counts: {
             today: Number(state.counts?.today) || 0,
             total: Number(state.counts?.total) || 0,
@@ -66,6 +67,32 @@ export function parseState(text) {
         issues: Array.isArray(state.issues) ? state.issues.filter(isIssueLike).map(withName) : [],
         otherPings: Array.isArray(state.otherPings) ? state.otherPings.filter(isIssueLike).map(withName) : [],
     };
+}
+
+// What feeds the hub (a chat poller, a script) reports in; nothing heard for this long is a warning.
+export const SOURCE_SILENT_AFTER_MS = 3 * 60 * 1000;
+
+function parseSources(sources) {
+    if (!sources || typeof sources !== 'object' || Array.isArray(sources))
+        return {};
+    const parsed = {};
+    for (const [name, source] of Object.entries(sources)) {
+        if (source && typeof source === 'object' && typeof source.ok === 'boolean')
+            parsed[name] = { ok: source.ok, detail: String(source.detail ?? ''), at: Number(source.at) || 0 };
+    }
+    return parsed;
+}
+
+/** One line per source that is unhealthy or has gone quiet, worst news first. */
+export function sourceWarnings(state, now) {
+    const warnings = [];
+    for (const [name, source] of Object.entries(state?.sources ?? {})) {
+        if (!source.ok)
+            warnings.push(`⚠ ${name}: ${source.detail || 'unhealthy'}`);
+        else if (now - source.at > SOURCE_SILENT_AFTER_MS)
+            warnings.push(`⚠ ${name}: no heartbeat for ${formatAgo(now - source.at).replace(' ago', '')}`);
+    }
+    return warnings;
 }
 
 function isIssueLike(issue) {
@@ -114,7 +141,7 @@ export function headerLine(state, now) {
     ];
     if (state.counts.untriaged > 0)
         parts.push(`untriaged: ${state.counts.untriaged}`);
-    const line = parts.join(' · ');
+    const line = [...sourceWarnings(state, now), parts.join(' · ')].join('  ·  ');
     return isStale(state, now) ? `⚠ hub not responding · ${line}` : line;
 }
 

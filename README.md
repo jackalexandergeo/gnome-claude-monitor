@@ -108,6 +108,10 @@ The snapshot format (version 1):
  "otherPings": []}
 ```
 
+Optional `sources` (`{"<name>": {"ok": true | false, "detail": "...", "at": <epoch ms>}}`) are
+the writer's own inputs reporting in: one that is not ok, or silent for three minutes, leads the
+dropdown's header with a warning.
+
 The writer should refresh `updatedAt` at least once a minute; after three minutes without
 an update the button shows `–` (or a red `–!` if an issue was last seen needing you) and the
 dropdown says the hub is not responding.
