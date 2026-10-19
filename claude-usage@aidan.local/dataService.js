@@ -413,7 +413,8 @@ export class DataService {
                     pid: s.pid,
                     cwd: s.cwd || '',
                     project: s.cwd ? GLib.path_get_basename(s.cwd) : '(unknown)',
-                    name: typeof s.name === 'string' ? s.name : '',
+                    // a pre-warmed spare session is "named" after its job id: no better than the folder
+                    name: typeof s.name === 'string' && !s.spare && s.name !== s.jobId ? s.name : '',
                     status: s.status || 'idle',
                     startedAt: s.startedAt || 0,
                 });
