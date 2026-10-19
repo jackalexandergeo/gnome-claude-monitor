@@ -19,6 +19,9 @@ import {
 } from './pings.js';
 
 const MAX_ISSUES_SHOWN = 10;
+// The dialog does not scroll: a long question would push its buttons off the screen. The
+// full text is in the menu.
+const DIALOG_QUESTION_CHARACTERS = 300;
 const MAX_OTHER_PINGS_SHOWN = 10;
 
 const EMPHASIS_STYLE = {
@@ -185,8 +188,17 @@ class PingIndicator extends PanelMenu.Button {
     // Filing a ticket, opening an MR or dropping one does not come undone: say what the
     // answer will do and wait for a second, deliberate click.
     _confirmDecision(action, issue, state) {
+        this._dialog?.destroy();
         const dialog = new ModalDialog.ModalDialog({ styleClass: 'pingwatch-confirm' });
-        const question = typeof issue.question === 'string' && issue.question ? `${issue.question}\n\n` : '';
+        this._dialog = dialog;
+        dialog.connect('destroy', () => {
+            if (this._dialog === dialog)
+                this._dialog = null;
+        });
+        let question = typeof issue.question === 'string' ? issue.question : '';
+        if (question.length > DIALOG_QUESTION_CHARACTERS)
+            question = `${question.slice(0, DIALOG_QUESTION_CHARACTERS - 1)}…`;
+        question = question ? `${question}\n\n` : '';
         dialog.contentLayout.add_child(new Dialog.MessageDialogContent({
             title: `${action.label}?`,
             description: `${issue.name}\n\n${question}${action.consequence}`,
@@ -198,7 +210,7 @@ class PingIndicator extends PanelMenu.Button {
                 default: true,
                 action: () => {
                     dialog.close();
-                    this._service.decide(state?.hubSocket, issue.id, action.gate, action.approve).then(result => {
+                    this._service?.decide(state?.hubSocket, issue.id, action.gate, action.approve).then(result => {
                         if (result.status !== 200)
                             this._onProblem?.(`Not done: ${action.label}`, `${issue.name}: ${result.error}`);
                     });
@@ -206,5 +218,16 @@ class PingIndicator extends PanelMenu.Button {
             },
         ]);
         dialog.open();
+    }
+
+    // The dialog lives in the Shell's modal group, above the lock screen, not in this button:
+    // when the extension is disabled (it is on every lock) it must go too, or it stays up,
+    // clickable, over the lock screen.
+    destroy() {
+        this._dialog?.destroy();
+        this._dialog = null;
+        this._onProblem = null;
+        this._service = null;
+        super.destroy();
     }
 });

@@ -227,7 +227,11 @@ unlocked.stop();
     check('and hands back the hub\'s refusal', answer.status === 409 && answer.error === 'nothing is waiting on a ticket decision for this issue');
     const nowhere = await deciding.decide(GLib.build_filenamev([stateHome, 'nothing.sock']), 7, 'ticket', true);
     check('an unreachable hub is an error too, not silence', nowhere.status === 0 && nowhere.error);
+    const noSocket = await deciding.decide(null, 7, 'ticket', true);
+    check('no socket named is an error with a reason', noSocket.status === 0 && typeof noSocket.error === 'string');
     deciding.stop();
+    const afterStop = await deciding.decide(socketPath, 7, 'ticket', true);
+    check('a stopped service sends nothing', afterStop.status === 0 && afterStop.error === 'pingwatch was turned off');
     listener.close();
 }
 

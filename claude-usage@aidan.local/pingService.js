@@ -242,6 +242,8 @@ export class PingService {
      * HTTP status, or 0 when the hub could not be reached.
      */
     async decide(socketPath, issueId, gate, approve) {
+        if (this._stopped)
+            return { status: 0, error: 'pingwatch was turned off' };
         if (!socketPath || !Number.isInteger(issueId))
             return { status: 0, error: 'pingwatch did not say where to send decisions' };
         const session = new Soup.Session({ remote_connectable: Gio.UnixSocketAddress.new(socketPath), timeout: 10 });
