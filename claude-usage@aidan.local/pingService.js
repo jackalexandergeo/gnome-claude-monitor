@@ -100,20 +100,23 @@ export class PingService {
             return;
         const file = Gio.File.new_for_path(GLib.build_filenamev([STATE_DIR, STATE_FILE]));
         let next = null;
+        let missing = false;
         try {
             const [contents] = await file.load_contents_async(this._cancellable);
             next = parseState(this._decoder.decode(contents));
         } catch (error) {
             if (error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 return;
-            // NOT_FOUND just means pingwatch is not installed or not started yet.
-            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+            // NOT_FOUND: pingwatch is not installed, not started yet, or was removed.
+            missing = Boolean(error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND));
+            if (!missing)
                 logError(error, 'claude-usage: cannot read pingwatch state');
         }
         if (this._stopped)
             return;
-        // Keep the last good snapshot through a bad read, so a torn file doesn't blank the menu.
-        const state = next ?? this._state;
+        // No file hides the button. An unreadable one is most likely a torn write, so the
+        // last good snapshot stays rather than blanking the menu.
+        const state = missing ? null : next ?? this._state;
         const notifications = next ? notificationsBetween(this._state, next) : [];
         this._state = state;
         const payload = { state, now: Date.now(), notifications };

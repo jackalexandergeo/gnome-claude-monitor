@@ -24,6 +24,7 @@ install.sh                  install from source (local dev)
 online-install.sh           one-liner installer (downloads latest release)
 test/blocks-test.js         `gjs -m test/blocks-test.js`
 test/pings-test.js          `gjs -m test/pings-test.js`
+test/ping-service-test.js   `gjs -m test/ping-service-test.js`
 ```
 
 ## Local dev loop
@@ -48,6 +49,7 @@ Pure logic (5h-window math, token sums) is unit-tested with plain gjs — no she
 ```sh
 gjs -m test/blocks-test.js
 gjs -m test/pings-test.js
+gjs -m test/ping-service-test.js
 ```
 
 ## Build a zip locally
@@ -81,7 +83,7 @@ Steps:
 git add -A && git commit -m "feat: <what changed>"
 
 # 2. pre-flight: same checks CI will run
-gjs -m test/blocks-test.js && gjs -m test/pings-test.js && ./build.sh
+for test in test/*-test.js; do gjs -m "$test" || break; done && ./build.sh
 
 # 3. push, then tag + push the tag to trigger the release build
 git push origin main
