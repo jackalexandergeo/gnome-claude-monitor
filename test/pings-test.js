@@ -3,7 +3,7 @@
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
-    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook,
+    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -77,6 +77,10 @@ check('unhealthy sources come first, then silent ones, and the rest fold',
         quiet: { ok: true, at: NOW - 12 * 60_000 }, broken: { ok: false, detail: 'x'.repeat(300), at: NOW },
         also: { ok: false, detail: 'down', at: NOW }, never: { ok: true },
     }), NOW).join('|') === `⚠ broken: ${'x'.repeat(79)}…|⚠ also: down|+2 more`);
+const smiling = '\u{1F600}';   // two UTF-16 code units
+const [emojiWarning] = sourceWarnings(withSources({ chat: { ok: false, detail: smiling.repeat(100), at: NOW } }), NOW);
+check('a long emoji detail is cut between emoji, not inside one',
+    emojiWarning.isWellFormed() && emojiWarning === `⚠ chat: ${smiling.repeat(79)}…`);
 check('a source that never beat says so, not 20000 days',
     sourceWarnings(withSources({ chat: { ok: true } }), NOW)[0] === '⚠ chat: no heartbeat yet');
 check('the header leads with the warning',
@@ -186,6 +190,15 @@ check('a corrupt remembered map is ignored', stateFromAnnounced('junk') === null
 
 // formatting
 check('status labels', statusLabel('needs-you') === 'needs you' && statusLabel('weird') === 'weird');
+check('truncate leaves text that fits alone',
+    truncate('short', 80) === 'short' && truncate('x'.repeat(80), 80) === 'x'.repeat(80));
+check('truncate cuts to the limit, the "…" included', truncate('x'.repeat(81), 80) === `${'x'.repeat(79)}…`);
+check('truncate counts an emoji as one character, at either alignment',
+    truncate(smiling.repeat(80), 80) === smiling.repeat(80) &&
+    [smiling.repeat(81), `x${smiling.repeat(81)}`].every(text => {
+        const cut = truncate(text, 80);
+        return cut.isWellFormed() && [...cut].length === 80 && cut.endsWith(`${smiling}…`);
+    }));
 check('formatAgo', formatAgo(30_000) === 'just now' && formatAgo(5 * 60_000) === '5m ago' && formatAgo(3 * 3600_000) === '3h ago');
 
 print('');

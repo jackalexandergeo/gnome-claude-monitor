@@ -15,7 +15,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
-    panelSummary, headerLine, issueActions, statusLabel, formatAgo, needsYou,
+    panelSummary, headerLine, issueActions, statusLabel, formatAgo, needsYou, truncate,
 } from './pings.js';
 
 const MAX_ISSUES_SHOWN = 10;
@@ -196,9 +196,7 @@ class PingIndicator extends PanelMenu.Button {
             if (this._dialog === dialog)
                 this._dialog = null;
         });
-        let question = typeof issue.question === 'string' ? issue.question : '';
-        if (question.length > DIALOG_QUESTION_CHARACTERS)
-            question = `${question.slice(0, DIALOG_QUESTION_CHARACTERS - 1)}…`;
+        let question = typeof issue.question === 'string' ? truncate(issue.question, DIALOG_QUESTION_CHARACTERS) : '';
         question = question ? `${question}\n\n` : '';
         dialog.contentLayout.add_child(new Dialog.MessageDialogContent({
             title: `${action.label}?`,

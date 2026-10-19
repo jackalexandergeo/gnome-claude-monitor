@@ -98,10 +98,7 @@ export function sourceWarnings(state, now) {
     const silent = [];
     for (const [name, source] of Object.entries(state?.sources ?? {})) {
         if (!source.ok) {
-            let detail = source.detail || 'unhealthy';
-            if (detail.length > SOURCE_DETAIL_CHARACTERS)
-                detail = `${detail.slice(0, SOURCE_DETAIL_CHARACTERS - 1)}…`;
-            unhealthy.push(`⚠ ${name}: ${detail}`);
+            unhealthy.push(`⚠ ${name}: ${truncate(source.detail || 'unhealthy', SOURCE_DETAIL_CHARACTERS)}`);
         } else if (!source.at) {
             silent.push(`⚠ ${name}: no heartbeat yet`);
         } else if (now - source.at > SOURCE_SILENT_AFTER_MS) {
@@ -327,6 +324,14 @@ export class BannerBook {
                 this._byIssue.delete(id);
         }
     }
+}
+
+/** `text` cut to `characters` code points with a trailing "…", so an emoji's surrogate pair is never split. */
+export function truncate(text, characters) {
+    const codePoints = [...text];
+    if (codePoints.length <= characters)
+        return text;
+    return `${codePoints.slice(0, characters - 1).join('')}…`;
 }
 
 export function formatAgo(deltaMs) {
