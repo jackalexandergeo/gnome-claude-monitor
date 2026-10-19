@@ -2,7 +2,8 @@
 // Tests for the pingwatch Issues logic. Run: gjs -m test/pings-test.js
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
-    statusLabel, formatAgo, STALE_AFTER_MS,
+    statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
+    announcedMap, stateFromAnnounced,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -86,6 +87,18 @@ check('needs-you announced on transition',
     notificationsBetween(triaged, state({ issues: [issue({ status: 'needs-you' })] }))[0]?.title.startsWith('Needs you:'));
 check('dismissed pings are not announced',
     notificationsBetween(state({ issues: [] }), state({ issues: [issue({ kind: 'social', status: 'ignored' })] })).length === 0);
+
+// limiting + remembering
+const many = Array.from({ length: 9 }, (_, index) => ({ title: `t${index}`, body: '', url: 'https://x' }));
+const limited = limitNotifications(many);
+check('a burst is cut to the limit', limited.length === MAX_NOTIFICATIONS_AT_ONCE);
+check('the last one summarizes the rest', limited[limited.length - 1].title === '6 more issue updates');
+check('a small batch passes through', limitNotifications(many.slice(0, 2)).length === 2);
+const remembered = stateFromAnnounced(JSON.parse(JSON.stringify(announcedMap(triaged))));
+check('a remembered map round-trips through JSON',
+    notificationsBetween(remembered, triaged).length === 0 &&
+    notificationsBetween(remembered, state({ issues: [issue({ status: 'needs-you' })] })).length === 1);
+check('a corrupt remembered map is ignored', stateFromAnnounced('junk') === null && stateFromAnnounced(null) === null);
 
 // formatting
 check('status labels', statusLabel('needs-you') === 'needs you' && statusLabel('weird') === 'weird');

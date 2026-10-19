@@ -3,17 +3,25 @@
  * Async throughout (Gio promisified) so the compositor main loop never blocks. Emits
  * {state, now, notifications} to listeners; state is null while pingwatch is absent,
  * which keeps the whole Issues feature hidden.
+ *
+ * What was last announced is kept on disk: the shell disables extensions while the screen
+ * is locked, and a change that happened meanwhile must still be announced after unlock.
  */
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-import { parseState, notificationsBetween } from './pings.js';
+import {
+    parseState, notificationsBetween, limitNotifications, announcedMap, stateFromAnnounced,
+} from './pings.js';
 
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
+Gio._promisify(Gio.File.prototype, 'replace_contents_bytes_async', 'replace_contents_finish');
 
 const STATE_DIR = GLib.build_filenamev([GLib.get_user_state_dir(), 'pingwatch']);
 const STATE_FILE = 'state.json';
+const ANNOUNCED_DIR = GLib.build_filenamev([GLib.get_user_state_dir(), 'claude-usage']);
+const ANNOUNCED_FILE = 'pings-announced.json';
 const REFRESH_SECS = 15;       // re-read even without a change event: staleness + late-created dir
 const DEBOUNCE_MS = 200;       // the hub replaces the file atomically; coalesce the burst of events
 
@@ -26,8 +34,13 @@ export class PingService {
         this._timeoutId = 0;
         this._debounceId = 0;
         this._state = null;
+        this._announced = undefined;   // undefined: not loaded yet; null: nothing remembered
+        this._announcedText = null;
+        this._refreshing = false;
+        this._refreshAgain = false;
         this._stopped = false;
         this._decoder = new TextDecoder('utf-8');
+        this._encoder = new TextEncoder();
     }
 
     connect(callback) {
@@ -98,6 +111,28 @@ export class PingService {
     async refreshNow() {
         if (this._stopped)
             return;
+        // One at a time: a timer tick and a file event landing together would otherwise
+        // compare against the same old state and announce one change twice.
+        if (this._refreshing) {
+            this._refreshAgain = true;
+            return;
+        }
+        this._refreshing = true;
+        try {
+            do {
+                this._refreshAgain = false;
+                await this._refreshOnce();
+            } while (this._refreshAgain && !this._stopped);
+        } finally {
+            this._refreshing = false;
+        }
+    }
+
+    async _refreshOnce() {
+        if (this._announced === undefined)
+            this._announced = await this._loadAnnounced();
+        if (this._stopped)
+            return;
         const file = Gio.File.new_for_path(GLib.build_filenamev([STATE_DIR, STATE_FILE]));
         let next = null;
         let missing = false;
@@ -117,11 +152,47 @@ export class PingService {
         // No file hides the button. An unreadable one is most likely a torn write, so the
         // last good snapshot stays rather than blanking the menu.
         const state = missing ? null : next ?? this._state;
-        const notifications = next ? notificationsBetween(this._state, next) : [];
+        let notifications = [];
+        if (next) {
+            // Nothing remembered (first ever start): take what is there as already seen.
+            notifications = limitNotifications(notificationsBetween(this._announced, next));
+            this._announced = stateFromAnnounced(announcedMap(next));
+            this._saveAnnounced(announcedMap(next));
+        }
         this._state = state;
         const payload = { state, now: Date.now(), notifications };
         for (const listener of this._listeners)
             listener(payload);
+    }
+
+    async _loadAnnounced() {
+        const file = Gio.File.new_for_path(GLib.build_filenamev([ANNOUNCED_DIR, ANNOUNCED_FILE]));
+        try {
+            const [contents] = await file.load_contents_async(this._cancellable);
+            this._announcedText = this._decoder.decode(contents);
+            return stateFromAnnounced(JSON.parse(this._announcedText));
+        } catch (error) {
+            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND) &&
+                !error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                logError(error, 'claude-usage: cannot read announced pings; starting fresh');
+            return null;
+        }
+    }
+
+    async _saveAnnounced(map) {
+        const text = JSON.stringify(map);
+        if (text === this._announcedText)
+            return;
+        this._announcedText = text;
+        try {
+            GLib.mkdir_with_parents(ANNOUNCED_DIR, 0o700);
+            const file = Gio.File.new_for_path(GLib.build_filenamev([ANNOUNCED_DIR, ANNOUNCED_FILE]));
+            await file.replace_contents_bytes_async(new GLib.Bytes(this._encoder.encode(text)), null, false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION, this._cancellable);
+        } catch (error) {
+            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+                logError(error, 'claude-usage: cannot save announced pings');
+        }
     }
 
     openURL(url) {

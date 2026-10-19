@@ -56,8 +56,33 @@ check('torn file: the last good state is kept', last?.state?.issues[0]?.status =
 GLib.unlink(statePath);
 await service.refreshNow();
 check('file deleted: state goes back to null', last?.state === null);
-
 service.stop();
+
+// The screen locks (extension disabled), an agent starts waiting on you, the screen
+// unlocks (a fresh service): that change must still be announced.
+write(snapshot('new'));
+const beforeLock = new PingService();
+beforeLock.connect(() => {});
+await beforeLock.refreshNow();
+await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => resolve() ?? GLib.SOURCE_REMOVE));
+beforeLock.stop();
+write(snapshot('needs-you'));
+const afterUnlock = new PingService();
+const announced = [];
+afterUnlock.connect(payload => announced.push(...payload.notifications));
+await afterUnlock.refreshNow();
+check('a change made while locked is announced after unlock',
+    announced.length === 1 && announced[0].title === 'Needs you: [demo]: Disk full');
+
+// Two refreshes at once must not announce the same change twice.
+write(snapshot('new'));
+await afterUnlock.refreshNow();
+announced.length = 0;
+write(snapshot('needs-you'));
+await Promise.all([afterUnlock.refreshNow(), afterUnlock.refreshNow()]);
+await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => resolve() ?? GLib.SOURCE_REMOVE));
+check('overlapping refreshes announce once', announced.length === 1);
+afterUnlock.stop();
 GLib.spawn_command_line_sync(`rm -rf ${stateHome}`);
 
 print('');

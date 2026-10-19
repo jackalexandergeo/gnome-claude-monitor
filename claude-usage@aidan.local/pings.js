@@ -13,6 +13,9 @@ export const STALE_AFTER_MS = 3 * 60 * 1000;
 
 export const NEEDS_YOU_STATUSES = new Set(['needs-you']);
 
+// More changes than this at once (a long lock, a week away) become one summary banner.
+export const MAX_NOTIFICATIONS_AT_ONCE = 4;
+
 const STATUS_LABELS = {
     'triaging': 'triaging',
     'new': 'new',
@@ -151,6 +154,34 @@ export function notificationsBetween(previous, next) {
         }
     }
     return notifications;
+}
+
+/** At most MAX_NOTIFICATIONS_AT_ONCE banners; the rest are folded into one summary. */
+export function limitNotifications(notifications) {
+    if (notifications.length <= MAX_NOTIFICATIONS_AT_ONCE)
+        return notifications;
+    const shown = notifications.slice(0, MAX_NOTIFICATIONS_AT_ONCE - 1);
+    const rest = notifications.length - shown.length;
+    return [...shown, { title: `${rest} more issue updates`, body: 'Open the Issues menu to see them', url: null }];
+}
+
+/** The part of a snapshot worth remembering between sessions: each issue's status and kind. */
+export function announcedMap(state) {
+    const map = {};
+    for (const issue of state?.issues ?? [])
+        map[issue.id] = { status: issue.status, kind: issue.kind };
+    return map;
+}
+
+/** A remembered map back in snapshot shape, as the `previous` of notificationsBetween. */
+export function stateFromAnnounced(map) {
+    if (!map || typeof map !== 'object')
+        return null;
+    return {
+        issues: Object.entries(map)
+            .filter(([id, issue]) => Number.isInteger(Number(id)) && issue && typeof issue === 'object')
+            .map(([id, issue]) => ({ id: Number(id), status: issue.status, kind: issue.kind })),
+    };
 }
 
 export function formatAgo(deltaMs) {

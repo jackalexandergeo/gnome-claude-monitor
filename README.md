@@ -81,7 +81,10 @@ usage one: `💬 3`, orange while issues are open and red with `!` when one need
 Its dropdown lists each issue as `[project]: title · status`, with links to the source
 thread, the ticket, any merge requests, and **Agent: <role>** entries that open
 `claude attach <id>` in a terminal. New issues and "needs you" changes raise a desktop
-notification; clicking it opens the thread. Without that file the button never shows.
+notification; clicking it opens the thread. Changes made while the screen was locked are
+announced after unlock (what was announced is kept in
+`$XDG_STATE_HOME/claude-usage/pings-announced.json`), and more than four at once fold into
+one summary. Without that file the button never shows.
 
 The snapshot format (version 1):
 
