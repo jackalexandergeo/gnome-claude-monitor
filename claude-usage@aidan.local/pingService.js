@@ -237,37 +237,47 @@ export class PingService {
     }
 
     /**
-     * Send the user's approve/reject of a review to the hub, over its local socket (HTTP
-     * over a Unix socket: the hub accepts only this user's processes). Resolves to the
-     * HTTP status, or 0 when the hub could not be reached.
+     * POST JSON to the hub over its local socket (HTTP over a Unix socket: the hub accepts
+     * only this user's processes). Resolves to { status, body, error }: status 0 when the
+     * hub could not be reached; error set for anything but a 200.
      */
-    async decide(socketPath, issueId, gate, approve) {
+    async _post(socketPath, path, payload, what) {
         if (this._stopped)
-            return { status: 0, error: 'pingwatch was turned off' };
-        if (!socketPath || !Number.isInteger(issueId))
-            return { status: 0, error: 'pingwatch did not say where to send decisions' };
+            return { status: 0, body: null, error: 'pingwatch was turned off' };
+        if (!socketPath)
+            return { status: 0, body: null, error: 'pingwatch did not say where to reach it' };
         const session = new Soup.Session({ remote_connectable: Gio.UnixSocketAddress.new(socketPath), timeout: 10 });
-        const message = Soup.Message.new('POST', `http://pingwatch/v1/issues/${issueId}/decisions`);
+        const message = Soup.Message.new('POST', `http://pingwatch${path}`);
         message.set_request_body_from_bytes('application/json',
-            new GLib.Bytes(this._encoder.encode(JSON.stringify({ gate, approve }))));
+            new GLib.Bytes(this._encoder.encode(JSON.stringify(payload))));
         let bytes;
         try {
             bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
         } catch (error) {
-            logError(error, `claude-usage: could not send the ${gate} decision to pingwatch`);
-            return { status: 0, error: error.message };
+            logError(error, `claude-usage: could not send ${what} to pingwatch`);
+            return { status: 0, body: null, error: error.message };
         }
         const status = message.get_status();
-        let error = null;
-        if (status !== 200) {
-            try {
-                error = JSON.parse(this._decoder.decode(bytes.toArray())).error ?? null;
-            } catch (_parseError) {
-            }
-            error = error || `HTTP ${status}`;
-            log(`claude-usage: pingwatch answered ${status} to the ${gate} decision for issue ${issueId}: ${error}`);
+        let body = null;
+        try {
+            body = JSON.parse(this._decoder.decode(bytes.toArray()));
+        } catch (_parseError) {
         }
-        this.refreshNow();
+        if (status === 200)
+            return { status, body, error: null };
+        const error = body?.error || `HTTP ${status}`;
+        log(`claude-usage: pingwatch answered ${status} to ${what}: ${error}`);
+        return { status, body, error };
+    }
+
+    /** Send the user's approve/reject of a gate to the hub. Resolves to { status, error }. */
+    async decide(socketPath, issueId, gate, approve) {
+        if (!Number.isInteger(issueId))
+            return { status: 0, error: 'pingwatch did not say which issue this is' };
+        const { status, error } = await this._post(socketPath, `/v1/issues/${issueId}/decisions`, { gate, approve },
+            `the ${gate} decision for issue ${issueId}`);
+        if (status !== 0)   // the hub answered: show what it did
+            this.refreshNow();
         return { status, error };
     }
 
