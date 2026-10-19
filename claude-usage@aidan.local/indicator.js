@@ -223,7 +223,8 @@ class ClaudeIndicator extends PanelMenu.Button {
             const busy = s.status === 'busy';
             row.dot.style_class = `claude-row-dot ${busy ? 'claude-dot-busy' : 'claude-dot-idle'}`;
             row.dot.text = busy ? '●' : '◌';
-            row.name.text = s.project;
+            // a named session (`claude -n`, or Claude's own title) reads better than its folder
+            row.name.text = s.name || s.project;
             const up = s.startedAt ? fmtDuration(state.now - s.startedAt) : '';
             const tok = s.tokens ? `  ·  ${fmtTokens(s.tokens)} tok` : '';
             row.detail.text = `${s.status}${up ? `  ·  up ${up}` : ''}${tok}`;

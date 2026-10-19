@@ -65,7 +65,7 @@ turns orange when one is working), then your 5-hour usage and reset countdown.
 
 Click it for the full picture:
 
-- **Sessions** — one row per live session: project name, busy/idle dot, uptime, and
+- **Sessions** — one row per live session: its name (or project folder), busy/idle dot, uptime, and
   **that session's token usage** (per-agent tokens over the last ~26h; hidden once a
   session has been idle longer than that)
 - **Usage** — 5h window (% bar + reset countdown), weekly window (% + reset + any

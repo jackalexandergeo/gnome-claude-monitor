@@ -413,6 +413,7 @@ export class DataService {
                     pid: s.pid,
                     cwd: s.cwd || '',
                     project: s.cwd ? GLib.path_get_basename(s.cwd) : '(unknown)',
+                    name: typeof s.name === 'string' ? s.name : '',
                     status: s.status || 'idle',
                     startedAt: s.startedAt || 0,
                 });
