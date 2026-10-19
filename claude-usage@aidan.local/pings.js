@@ -26,6 +26,7 @@ const STATUS_LABELS = {
     'mr-open': 'MR open',
     'proposed': 'proposed',
     'done': 'done',
+    'theirs': "someone else's",
     'failed': 'failed',
 };
 
@@ -36,12 +37,14 @@ const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 // The reviews a snapshot can say are waiting on the user's approve/reject, and what each
 // answer does there.
 const DECISION_LABELS = {
+    scope: ['Start anyway', 'Leave it to them'],
     research: ['Accept the research', 'Send it back'],
     ticket: ['File the ticket', "Don't file it"],
     change: ['Open the draft MR', 'Drop the change'],
 };
 // What each answer does, said in the confirmation before it is sent.
 const DECISION_CONSEQUENCES = {
+    scope: ['The agents start working on this issue.', "Nothing more runs; the issue is marked as someone else's."],
     research: ['The pipeline goes on with this research as it is.', "The research runs again with the reviewer's notes."],
     ticket: ['Files the ticket.', 'No ticket is filed for this issue.'],
     change: ['Pushes the branch and opens a draft MR.', 'The change is dropped; no MR is opened.'],

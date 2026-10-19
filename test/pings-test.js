@@ -105,6 +105,10 @@ check('each answer says what it will do',
 check('a waiting review offers its two answers, and only for known gates',
     deciding.map(action => action.label).join('|') === "Accept the research|Send it back|File the ticket|Don't file it" &&
     deciding.every(action => action.kind === 'decision'));
+const scoping = issueActions(issue({ url: null, awaiting: ['scope'] }));
+check('an issue that may be someone else\'s offers to start anyway or leave it',
+    scoping.map(action => action.label).join('|') === 'Start anyway|Leave it to them' &&
+    scoping.every(action => action.gate === 'scope'));
 check('the hub socket is taken only as an absolute path',
     parseState(JSON.stringify({ version: 1, hub: { socket: '/run/user/1/pingwatch/hub.sock' } })).hubSocket === '/run/user/1/pingwatch/hub.sock' &&
     parseState(JSON.stringify({ version: 1, hub: { socket: 'relative.sock' } })).hubSocket === null);
@@ -189,7 +193,8 @@ check('a corrupt remembered map is ignored', stateFromAnnounced('junk') === null
 }
 
 // formatting
-check('status labels', statusLabel('needs-you') === 'needs you' && statusLabel('weird') === 'weird');
+check('status labels', statusLabel('needs-you') === 'needs you' && statusLabel('theirs') === "someone else's" &&
+    statusLabel('weird') === 'weird');
 check('truncate leaves text that fits alone',
     truncate('short', 80) === 'short' && truncate('x'.repeat(80), 80) === 'x'.repeat(80));
 check('truncate cuts to the limit, the "…" included', truncate('x'.repeat(81), 80) === `${'x'.repeat(79)}…`);

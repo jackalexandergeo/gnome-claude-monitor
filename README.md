@@ -82,9 +82,10 @@ Its dropdown lists each issue as `[project]: title · status`, with links to the
 thread, the ticket, any merge requests, and **Agent: <role>** entries that open
 `claude attach <id>` in a terminal. When the snapshot says an issue asks something
 (`question`, e.g. a reviewer's score and summary) or a review waits on you
-(`awaiting: ["research" | "ticket" | "change"]`), the notification and the issue show the
-question, and the issue offers that review's two answers (*Accept the research* / *Send it
-back*, *File the ticket* / *Don't file it*, *Open the draft MR* / *Drop the change*), which
+(`awaiting: ["scope" | "research" | "ticket" | "change"]`), the notification and the issue
+show the question, and the issue offers that gate's two answers (*Start anyway* / *Leave it
+to them* when the issue may be someone else's, *Accept the research* / *Send it back*, *File
+the ticket* / *Don't file it*, *Open the draft MR* / *Drop the change*), which
 POST `{"gate": ..., "approve": true | false}` to `/v1/issues/<id>/decisions` over the Unix
 socket named in `hub.socket`. A new question on an issue that already needed you pops up
 again. New issues and "needs you" changes raise a desktop
