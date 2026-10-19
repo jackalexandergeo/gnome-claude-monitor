@@ -57,12 +57,20 @@ class PingIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(this._otherPings);
 
         // Rebuilt only when the snapshot changes, so an open submenu isn't torn down by
-        // the periodic refresh.
+        // the periodic refresh, and again on every open so "5m ago" is never stale.
         this._renderedKey = null;
+        this._lastPayload = null;
+        this.menu.connect('open-state-changed', (_menu, open) => {
+            if (open && this._lastPayload) {
+                this._renderedKey = null;
+                this.update({ ...this._lastPayload, now: Date.now() });
+            }
+        });
         this.visible = false;
     }
 
     update({ state, now }) {
+        this._lastPayload = { state, now };
         // No pingwatch on this machine: the button stays out of the panel entirely.
         this.visible = Boolean(state);
         if (!state)
