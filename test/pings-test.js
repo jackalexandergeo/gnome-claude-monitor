@@ -3,7 +3,7 @@
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
-    announcedMap, stateFromAnnounced, sourceWarnings,
+    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -156,6 +156,20 @@ check('a remembered map round-trips through JSON',
     notificationsBetween(remembered, triaged).length === 0 &&
     notificationsBetween(remembered, state({ issues: [issue({ status: 'needs-you' })] })).length === 1);
 check('a corrupt remembered map is ignored', stateFromAnnounced('junk') === null && stateFromAnnounced(null) === null);
+
+// banner bookkeeping
+{
+    const book = new BannerBook();
+    check('a first banner replaces nothing', book.replaceWith('b1', [1]).length === 0);
+    check('a newer banner for the issue replaces the older', book.replaceWith('b2', [1]).join() === 'b1');
+    const summaryBook = new BannerBook();
+    summaryBook.replaceWith('summary', [2, 3]);
+    check('a summary banner stays while another folded issue still needs it',
+        summaryBook.replaceWith('b2', [2]).length === 0);
+    check('and goes once no issue needs it', summaryBook.replaceWith('b3', [3]).join() === 'summary');
+    summaryBook.forget('b3');
+    check('a forgotten banner is never handed back', summaryBook.replaceWith('b4', [3]).length === 0);
+}
 
 // formatting
 check('status labels', statusLabel('needs-you') === 'needs you' && statusLabel('weird') === 'weird');

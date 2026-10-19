@@ -8,6 +8,7 @@ import { DataService } from './dataService.js';
 import { ClaudeIndicator } from './indicator.js';
 import { PingIndicator } from './pingIndicator.js';
 import { PingService } from './pingService.js';
+import { BannerBook } from './pings.js';
 
 const BOX_ACTORS = {
     left: () => Main.panel._leftBox,
@@ -38,7 +39,7 @@ export default class ClaudeUsageExtension extends Extension {
         this._pingService = new PingService();
         this._pingIndicator = new PingIndicator(this._pingService, this.path,
             (title, body) => this._notify({ title, body, url: null, pending: [] }));
-        this._bannerByIssue = new Map();   // issue id -> its newest needs-you notification
+        this._banners = new BannerBook();   // each issue's newest needs-you notification
         Main.panel.addToStatusArea(`${this.uuid}-pings`, this._pingIndicator);
         this._placePingIndicator();
         this._pingService.connect(payload => {
@@ -71,7 +72,7 @@ export default class ClaudeUsageExtension extends Extension {
         // which would read as the user having dismissed everything on every lock.
         this._notificationSource?.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
         this._notificationSource = null;
-        this._bannerByIssue = null;
+        this._banners = null;
         this._pingIndicator?.destroy();
         this._pingIndicator = null;
         this._indicator?.destroy();
@@ -81,6 +82,8 @@ export default class ClaudeUsageExtension extends Extension {
     // One source for every pingwatch notification. The shell destroys a source once its
     // last notification is dismissed, so it is recreated on demand.
     _notify({ title, body, url, pending }) {
+        if (!this._pingService)
+            return;   // disabled: nothing may outlive disable(), not even a new source
         if (!this._notificationSource) {
             this._notificationSource = new MessageTray.Source({ title: 'pingwatch', iconName: 'mail-unread-symbolic' });
             this._notificationSource.connect('destroy', () => {
@@ -89,25 +92,21 @@ export default class ClaudeUsageExtension extends Extension {
             Main.messageTray.add(this._notificationSource);
         }
         const notification = new MessageTray.Notification({ source: this._notificationSource, title, body });
-        // A newer banner for an issue replaces the older one, so the list shows only what
-        // still counts; REPLACED is not a dismissal, so nothing is acknowledged by it.
-        for (const { id } of pending ?? []) {
-            this._bannerByIssue.get(id)?.destroy(MessageTray.NotificationDestroyedReason.REPLACED);
-            this._bannerByIssue.set(id, notification);
-        }
+        const replaced = this._banners.replaceWith(notification, (pending ?? []).map(item => item.id));
         if (url)
             notification.connect('activated', () => this._pingService?.openURL(url));
         // Only the user's own dismissal (or click) settles a needs-you. Cleared by a lock or a
         // disable (SOURCE_CLOSED), it is raised again next time if the issue still needs them.
         notification.connect('destroy', (_notification, reason) => {
-            for (const { id } of pending ?? []) {
-                if (this._bannerByIssue?.get(id) === notification)
-                    this._bannerByIssue.delete(id);
-            }
+            this._banners?.forget(notification);
             if (reason === MessageTray.NotificationDestroyedReason.DISMISSED)
                 this._pingService?.acknowledge(pending ?? []);
         });
         this._notificationSource.addNotification(notification);
+        // Only now: destroying the source's last notification would destroy the source with it.
+        // REPLACED is not a dismissal, so nothing is acknowledged by it.
+        for (const banner of replaced)
+            banner.destroy(MessageTray.NotificationDestroyedReason.REPLACED);
     }
 
     // Keep the Issues button right after the usage indicator, wherever that sits.
