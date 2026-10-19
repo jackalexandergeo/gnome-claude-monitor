@@ -101,7 +101,8 @@ The snapshot format (version 1):
 ```
 
 The writer should refresh `updatedAt` at least once a minute; after three minutes without
-an update the button shows `–` and the dropdown says the hub is not responding.
+an update the button shows `–` (or a red `–!` if an issue was last seen needing you) and the
+dropdown says the hub is not responding.
 
 **Settings:** pick where it sits in the top bar (left / center / right, plus position) —
 changes apply live. Open them any time with `gnome-extensions prefs claude-usage@aidan.local`.

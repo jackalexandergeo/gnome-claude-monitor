@@ -137,8 +137,9 @@ export function issueActions(issue) {
 
 /**
  * What to tell the user about, comparing two snapshots: issues that newly became real
- * issues, and issues that newly need the user. With no previous snapshot (login, or the
- * extension just enabled) nothing is announced, so a restart never replays old news.
+ * issues, and issues that newly need the user. With no previous snapshot (the very first
+ * start) nothing is announced. After a lock or login the previous snapshot is the one
+ * remembered on disk, so only what changed meanwhile is announced.
  */
 export function notificationsBetween(previous, next) {
     if (!previous || !next)

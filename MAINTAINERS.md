@@ -83,7 +83,7 @@ Steps:
 git add -A && git commit -m "feat: <what changed>"
 
 # 2. pre-flight: same checks CI will run
-for test in test/*-test.js; do gjs -m "$test" || break; done && ./build.sh
+( for test in test/*-test.js; do gjs -m "$test" || exit 1; done ) && ./build.sh
 
 # 3. push, then tag + push the tag to trigger the release build
 git push origin main
