@@ -75,9 +75,10 @@ export function statusLabel(status) {
 
 /** Collapsed panel text and its emphasis: 'alert' (needs you), 'active' (open issues), 'idle'. */
 export function panelSummary(state, now) {
-    if (isStale(state, now))
-        return { text: '–', emphasis: 'idle' };
     const waiting = needsYouCount(state);
+    // A silent hub must not hide that an agent was last seen waiting on you.
+    if (isStale(state, now))
+        return waiting > 0 ? { text: '–!', emphasis: 'alert' } : { text: '–', emphasis: 'idle' };
     const open = state.counts.open;
     if (waiting > 0)
         return { text: `${open}!`, emphasis: 'alert' };

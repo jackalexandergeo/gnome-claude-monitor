@@ -49,6 +49,8 @@ check('panel alerts when something needs you',
 check('panel idle with nothing open',
     panelSummary(state({ counts: { today: 0, total: 0, open: 0, untriaged: 0 }, issues: [] }), NOW).emphasis === 'idle');
 check('panel shows a dash when the hub is down', panelSummary(state({}), NOW + STALE_AFTER_MS + 1).text === '–');
+check('a stale snapshot keeps the needs-you alert',
+    panelSummary(state({ issues: [issue({ status: 'needs-you' })] }), NOW + STALE_AFTER_MS + 1).emphasis === 'alert');
 
 // header
 check('header lists counts', headerLine(state({}), NOW) === 'Picked up today: 2 · total: 9 · need you: 0');
