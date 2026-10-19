@@ -33,8 +33,13 @@ const STATUS_LABELS = {
 // start with a letter or digit.
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 
-// The reviews a snapshot can say are waiting on the user's approve/reject.
-const DECISION_GATES = ['ticket', 'change'];
+// The reviews a snapshot can say are waiting on the user's approve/reject, and what each
+// answer does there.
+const DECISION_LABELS = {
+    research: ['Accept the research', 'Send it back'],
+    ticket: ['File the ticket', "Don't file it"],
+    change: ['Open the draft MR', 'Drop the change'],
+};
 
 /** Parse state.json text. Returns null when it is missing, malformed or a newer format. */
 export function parseState(text) {
@@ -139,10 +144,11 @@ export function issueActions(issue) {
             actions.push({ kind: 'session', label: `Agent: ${session.role || 'session'}`, sessionId: session.sessionId });
     }
     for (const gate of Array.isArray(issue.awaiting) ? issue.awaiting : []) {
-        if (!DECISION_GATES.includes(gate))
+        if (!Object.hasOwn(DECISION_LABELS, gate))
             continue;
-        actions.push({ kind: 'decision', label: `Approve the ${gate}`, gate, approve: true });
-        actions.push({ kind: 'decision', label: `Reject the ${gate}`, gate, approve: false });
+        const [approveLabel, rejectLabel] = DECISION_LABELS[gate];
+        actions.push({ kind: 'decision', label: approveLabel, gate, approve: true });
+        actions.push({ kind: 'decision', label: rejectLabel, gate, approve: false });
     }
     return actions;
 }
@@ -160,12 +166,15 @@ export function notificationsBetween(previous, next) {
     const notifications = [];
     for (const issue of next.issues) {
         const old = before.get(issue.id);
-        if (needsYou(issue) && !(old && needsYou(old))) {
+        // A new question on an issue that already needed the user is news too: a review can
+        // drop below the bar while an agent's earlier question is still open.
+        const question = typeof issue.question === 'string' ? issue.question : null;
+        if (needsYou(issue) && !(old && needsYou(old) && (old.question ?? null) === question)) {
             // Pending until dismissed; `baseline` is what the issue was before, which is
             // what gets remembered meanwhile (see announcedMap).
             notifications.push({
-                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url,
-                pending: [{ id: issue.id, baseline: old ? { status: old.status, kind: old.kind } : null }],
+                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: question || issue.lastPing?.preview || '', url: issue.url,
+                pending: [{ id: issue.id, baseline: old ? { status: old.status, kind: old.kind, question: old.question ?? null } : null }],
             });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
@@ -206,7 +215,7 @@ export function announcedMap(state, pending = new Map()) {
     const map = {};
     for (const issue of state?.issues ?? []) {
         if (!pending.has(issue.id))
-            map[issue.id] = { status: issue.status, kind: issue.kind };
+            map[issue.id] = { status: issue.status, kind: issue.kind, question: typeof issue.question === 'string' ? issue.question : null };
         else if (pending.get(issue.id))
             map[issue.id] = pending.get(issue.id);
     }
@@ -220,7 +229,7 @@ export function stateFromAnnounced(map) {
     return {
         issues: Object.entries(map)
             .filter(([id, issue]) => Number.isInteger(Number(id)) && issue && typeof issue === 'object')
-            .map(([id, issue]) => ({ id: Number(id), status: issue.status, kind: issue.kind })),
+            .map(([id, issue]) => ({ id: Number(id), status: issue.status, kind: issue.kind, question: issue.question ?? null })),
     };
 }
 

@@ -73,10 +73,10 @@ check('actions in order: thread, ticket, MR, agent',
     full.map(action => action.label).join('|') === 'Thread (chat)|Ticket #12|MR !34|Agent: research');
 check('actions drop non-web URLs and unsafe session ids', full.length === 4);
 check('no url, no thread action', issueActions(issue({ url: null })).length === 0);
-const deciding = issueActions(issue({ url: null, awaiting: ['ticket', 'everything'] }));
-check('a waiting review offers approve and reject, and only for known gates',
-    deciding.map(action => action.label).join('|') === 'Approve the ticket|Reject the ticket' &&
-    deciding.every(action => action.kind === 'decision' && action.gate === 'ticket'));
+const deciding = issueActions(issue({ url: null, awaiting: ['research', 'ticket', 'everything', 'constructor'] }));
+check('a waiting review offers its two answers, and only for known gates',
+    deciding.map(action => action.label).join('|') === "Accept the research|Send it back|File the ticket|Don't file it" &&
+    deciding.every(action => action.kind === 'decision'));
 check('the hub socket is taken only as an absolute path',
     parseState(JSON.stringify({ version: 1, hub: { socket: '/run/user/1/pingwatch/hub.sock' } })).hubSocket === '/run/user/1/pingwatch/hub.sock' &&
     parseState(JSON.stringify({ version: 1, hub: { socket: 'relative.sock' } })).hubSocket === null);
@@ -94,6 +94,16 @@ check('needs-you announced on transition',
     notificationsBetween(triaged, state({ issues: [issue({ status: 'needs-you' })] }))[0]?.title.startsWith('Needs you:'));
 check('dismissed pings are not announced',
     notificationsBetween(state({ issues: [] }), state({ issues: [issue({ kind: 'social', status: 'ignored' })] })).length === 0);
+
+// the popup when a review drops below the bar
+const waiting = state({ issues: [issue({ status: 'needs-you', question: 'the verifier scored the research 5/10: the cited line does not exist' })] });
+const popup = notificationsBetween(triaged, waiting);
+check('the popup says why', popup.length === 1 && popup[0].body === 'the verifier scored the research 5/10: the cited line does not exist');
+const secondQuestion = state({ issues: [issue({ status: 'needs-you', question: 'the ticket review scored 4/10: wrong project' })] });
+check('a new question on an issue already needing you pops up again', notificationsBetween(waiting, secondQuestion).length === 1);
+check('the same question does not', notificationsBetween(waiting, waiting).length === 0);
+check('the question survives being remembered',
+    notificationsBetween(stateFromAnnounced(JSON.parse(JSON.stringify(announcedMap(waiting)))), waiting).length === 0);
 
 // limiting + remembering
 const many = Array.from({ length: 9 }, (_, index) => ({ title: `t${index}`, body: '', url: 'https://x' }));

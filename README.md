@@ -81,10 +81,13 @@ usage one: `💬 3`, orange while issues are open and red with `!` when one need
 Its dropdown lists each issue as `[project]: title · status`, with links to the source
 thread, the ticket, any merge requests, and **Agent: <role>** entries that open
 `claude attach <id>` in a terminal. When the snapshot says an issue asks something
-(`question`) or a review waits on you (`awaiting: ["ticket" | "change"]`), the issue shows
-the question and **Approve / Reject** items, which POST
-`{"gate": ..., "approve": true | false}` to `/v1/issues/<id>/decisions` over the Unix socket
-named in `hub.socket`. New issues and "needs you" changes raise a desktop
+(`question`, e.g. a reviewer's score and summary) or a review waits on you
+(`awaiting: ["research" | "ticket" | "change"]`), the notification and the issue show the
+question, and the issue offers that review's two answers (*Accept the research* / *Send it
+back*, *File the ticket* / *Don't file it*, *Open the draft MR* / *Drop the change*), which
+POST `{"gate": ..., "approve": true | false}` to `/v1/issues/<id>/decisions` over the Unix
+socket named in `hub.socket`. A new question on an issue that already needed you pops up
+again. New issues and "needs you" changes raise a desktop
 notification; clicking it opens the thread. Changes made while the screen was locked are
 announced after unlock (what was announced is kept in
 `$XDG_STATE_HOME/claude-usage/pings-announced.json`), and more than four at once fold into
