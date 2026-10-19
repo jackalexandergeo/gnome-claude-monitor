@@ -37,7 +37,7 @@ export class PingService {
         this._announced = undefined;   // undefined: not loaded yet; null: nothing remembered
         this._announcedText = null;
         this._lastSnapshot = null;
-        this._unacknowledged = new Set();   // issue ids with a notification not yet dismissed
+        this._pending = new Map();   // issue id -> {count, baseline}: needs-you banners not yet dismissed
         // Saves run one after another and are not cancelled by stop(): the shell disables
         // the extension on lock, and the last save is the one that matters then.
         this._saveChain = Promise.resolve();
@@ -161,8 +161,15 @@ export class PingService {
         if (next) {
             // Nothing remembered (first ever start): take what is there as already seen.
             notifications = limitNotifications(notificationsBetween(this._announced, next));
-            for (const notification of notifications)
-                notification.issueIds.forEach(issueId => this._unacknowledged.add(issueId));
+            for (const notification of notifications) {
+                for (const { id, baseline } of notification.pending) {
+                    const entry = this._pending.get(id);
+                    if (entry)
+                        entry.count++;   // keep the earliest baseline
+                    else
+                        this._pending.set(id, { count: 1, baseline });
+                }
+            }
             this._announced = stateFromAnnounced(announcedMap(next));
             this._lastSnapshot = next;
             this._saveAnnounced();
@@ -187,16 +194,21 @@ export class PingService {
         }
     }
 
-    /** The user dismissed (or clicked) the notification for these issues: they stay announced. */
-    acknowledge(issueIds) {
-        issueIds.forEach(issueId => this._unacknowledged.delete(issueId));
+    /** The user dismissed (or clicked) a notification: what it was pending for is settled. */
+    acknowledge(pending) {
+        for (const { id } of pending) {
+            const entry = this._pending.get(id);
+            if (entry && --entry.count <= 0)
+                this._pending.delete(id);
+        }
         this._saveAnnounced();
     }
 
     _saveAnnounced() {
         if (!this._lastSnapshot)
             return this._saveChain;
-        const text = JSON.stringify(announcedMap(this._lastSnapshot, this._unacknowledged));
+        const baselines = new Map([...this._pending].map(([id, entry]) => [id, entry.baseline]));
+        const text = JSON.stringify(announcedMap(this._lastSnapshot, baselines));
         if (text === this._announcedText)
             return this._saveChain;
         this._announcedText = text;

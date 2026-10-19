@@ -149,12 +149,15 @@ export function notificationsBetween(previous, next) {
     for (const issue of next.issues) {
         const old = before.get(issue.id);
         if (needsYou(issue) && !(old && needsYou(old))) {
+            // Pending until dismissed; `baseline` is what the issue was before, which is
+            // what gets remembered meanwhile (see announcedMap).
             notifications.push({
-                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url, issueIds: [issue.id],
+                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url,
+                pending: [{ id: issue.id, baseline: old ? { status: old.status, kind: old.kind } : null }],
             });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
-            notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url, issueIds: [issue.id] });
+            notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url, pending: [] });
         }
     }
     return notifications;
@@ -176,20 +179,24 @@ export function limitNotifications(notifications) {
     const folded = notifications.slice(shown.length);
     return [...shown, {
         title: `${folded.length} more issue updates`, body: 'Open the Issues menu to see them', url: null,
-        issueIds: folded.flatMap(notification => notification.issueIds ?? []),
+        pending: folded.flatMap(notification => notification.pending ?? []),
     }];
 }
 
 /**
  * The part of a snapshot worth remembering between sessions: each issue's status and kind.
- * Issues in `unacknowledged` (a notification raised but not yet dismissed) are left out,
- * so if the shell clears that notification (it does on every lock) it is raised again.
+ * An issue with a needs-you notification not yet dismissed (`pending`: id -> its state
+ * before that) is remembered in its earlier state, so if the shell clears the notification
+ * (it does on every lock) and the issue still needs you, it is raised again; if it has
+ * moved on meanwhile, nothing is. A New-issue banner is announced once and never pends.
  */
-export function announcedMap(state, unacknowledged = new Set()) {
+export function announcedMap(state, pending = new Map()) {
     const map = {};
     for (const issue of state?.issues ?? []) {
-        if (!unacknowledged.has(issue.id))
+        if (!pending.has(issue.id))
             map[issue.id] = { status: issue.status, kind: issue.kind };
+        else if (pending.get(issue.id))
+            map[issue.id] = pending.get(issue.id);
     }
     return map;
 }

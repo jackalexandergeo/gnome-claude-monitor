@@ -94,11 +94,17 @@ const limited = limitNotifications(many);
 check('a burst is cut to the limit', limited.length === MAX_NOTIFICATIONS_AT_ONCE);
 check('the last one summarizes the rest', limited[limited.length - 1].title === '6 more issue updates');
 check('a small batch passes through', limitNotifications(many.slice(0, 2)).length === 2);
-const burst = [...many.slice(0, 4), { title: 'Needs you: [demo]: Disk full', body: '', url: 'https://x', issueIds: [9] }];
+const burst = [...many.slice(0, 4), { title: 'Needs you: [demo]: Disk full', body: '', url: 'https://x', pending: [{ id: 9, baseline: null }] }];
 check('needs-you survives a folded burst', limitNotifications(burst)[0].title.startsWith('Needs you:'));
-check('the summary carries the folded issue ids',
-    limitNotifications(burst.map((notification, index) => ({ ...notification, issueIds: notification.issueIds ?? [index] })))
-        .at(-1).issueIds.length === 2);
+check('the summary carries what the folded ones were pending for',
+    limitNotifications(burst.map((notification, index) => ({ ...notification, pending: notification.pending ?? [{ id: index, baseline: null }] })))
+        .at(-1).pending.length === 2);
+const pendingMap = announcedMap(state({ issues: [issue({ id: 1, status: 'needs-you' }), issue({ id: 2 })] }),
+    new Map([[1, { status: 'new', kind: 'issue' }]]));
+check('a pending needs-you is remembered as it was before',
+    pendingMap[1].status === 'new' && pendingMap[2].status === 'new');
+check('a pending issue with no earlier state is left out',
+    !(1 in announcedMap(state({ issues: [issue({ id: 1, status: 'needs-you' })] }), new Map([[1, null]]))));
 const remembered = stateFromAnnounced(JSON.parse(JSON.stringify(announcedMap(triaged))));
 check('a remembered map round-trips through JSON',
     notificationsBetween(remembered, triaged).length === 0 &&

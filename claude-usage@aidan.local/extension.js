@@ -65,7 +65,9 @@ export default class ClaudeUsageExtension extends Extension {
         this._dataService = null;
         this._pingService?.stop();
         this._pingService = null;
-        this._notificationSource?.destroy();
+        // Explicit: Source.destroy() without a reason destroys each notification as DISMISSED,
+        // which would read as the user having dismissed everything on every lock.
+        this._notificationSource?.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
         this._notificationSource = null;
         this._pingIndicator?.destroy();
         this._pingIndicator = null;
@@ -75,7 +77,7 @@ export default class ClaudeUsageExtension extends Extension {
 
     // One source for every pingwatch notification. The shell destroys a source once its
     // last notification is dismissed, so it is recreated on demand.
-    _notify({ title, body, url, issueIds }) {
+    _notify({ title, body, url, pending }) {
         if (!this._notificationSource) {
             this._notificationSource = new MessageTray.Source({ title: 'pingwatch', iconName: 'mail-unread-symbolic' });
             this._notificationSource.connect('destroy', () => {
@@ -86,11 +88,11 @@ export default class ClaudeUsageExtension extends Extension {
         const notification = new MessageTray.Notification({ source: this._notificationSource, title, body });
         if (url)
             notification.connect('activated', () => this._pingService?.openURL(url));
-        // Only the user's own dismissal (or click) settles it. Cleared by a lock or a disable
-        // (SOURCE_CLOSED), it is raised again next time.
+        // Only the user's own dismissal (or click) settles a needs-you. Cleared by a lock or a
+        // disable (SOURCE_CLOSED), it is raised again next time if the issue still needs them.
         notification.connect('destroy', (_notification, reason) => {
             if (reason === MessageTray.NotificationDestroyedReason.DISMISSED)
-                this._pingService?.acknowledge(issueIds ?? []);
+                this._pingService?.acknowledge(pending ?? []);
         });
         this._notificationSource.addNotification(notification);
     }

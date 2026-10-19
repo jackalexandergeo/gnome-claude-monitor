@@ -82,8 +82,8 @@ const secondUnlock = new PingService();
 const raisedAgain = [];
 secondUnlock.connect(payload => raisedAgain.push(...payload.notifications));
 await secondUnlock.refreshNow();
-check('an undismissed notification cleared by a lock is raised again', raisedAgain.length === 1);
-secondUnlock.acknowledge(raisedAgain[0].issueIds);
+check('an undismissed needs-you cleared by a lock is raised again', raisedAgain.length === 1);
+secondUnlock.acknowledge(raisedAgain[0].pending);
 secondUnlock.stop();
 await secondUnlock.flushed();
 const thirdUnlock = new PingService();
@@ -92,11 +92,65 @@ thirdUnlock.connect(payload => afterDismissal.push(...payload.notifications));
 await thirdUnlock.refreshNow();
 check('a dismissed notification is not raised again', afterDismissal.length === 0);
 thirdUnlock.stop();
-const afterUnlockAgain = new PingService();
-afterUnlockAgain.connect(payload => announced.push(...payload.notifications));
-await afterUnlockAgain.refreshNow();
+await thirdUnlock.flushed();
 
-afterUnlockAgain.stop();
+// Review round 3, F1: a needs-you answered without touching its banner must not come back
+// as a "New issue" after the next unlock (nor after every one after that).
+async function lockCycle(statusesBeforeLock, statusAtUnlock) {
+    const before = new PingService();
+    const raisedBefore = [];
+    before.connect(payload => raisedBefore.push(...payload.notifications));
+    for (const status of statusesBeforeLock) {
+        write(snapshot(status));
+        await before.refreshNow();
+    }
+    write(snapshot(statusAtUnlock));
+    await before.refreshNow();
+    before.stop();
+    await before.flushed();
+    const after = new PingService();
+    const raisedAfter = [];
+    after.connect(payload => raisedAfter.push(...payload.notifications));
+    await after.refreshNow();
+    after.stop();
+    await after.flushed();
+    return raisedAfter.map(notification => notification.title);
+}
+// new -> needs-you (banner raised, never touched) -> answered, in review -> lock -> unlock
+check('a needs-you answered before the lock is not raised after it',
+    (await lockCycle(['new', 'needs-you'], 'in-review')).length === 0);
+check('and it stays quiet on later unlocks', (await lockCycle(['in-review'], 'in-review')).length === 0);
+
+// A New-issue banner is announced once; a lock does not bring it back.
+write(JSON.stringify({ version: 1, updatedAt: Date.now(), counts: { open: 0 }, issues: [], otherPings: [] }));
+const empty = new PingService();
+empty.connect(() => {});
+await empty.refreshNow();
+empty.stop();
+await empty.flushed();
+check('a New-issue banner is not raised again after a lock', (await lockCycle(['new'], 'new')).length === 0);
+
+// Review round 3, F2: dismissing an older banner must not settle a newer, unread needs-you.
+write(JSON.stringify({ version: 1, updatedAt: Date.now(), counts: { open: 0 }, issues: [], otherPings: [] }));
+const fresh = new PingService();
+fresh.connect(() => {});
+await fresh.refreshNow();
+const banners = [];
+fresh.connect(payload => banners.push(...payload.notifications));
+write(snapshot('new'));
+await fresh.refreshNow();          // "New issue"
+write(snapshot('needs-you'));
+await fresh.refreshNow();          // "Needs you", left unread
+fresh.acknowledge(banners[0].pending);   // the old "New issue" banner is dismissed
+fresh.stop();
+await fresh.flushed();
+const unlocked = new PingService();
+const raisedAtUnlock = [];
+unlocked.connect(payload => raisedAtUnlock.push(...payload.notifications));
+await unlocked.refreshNow();
+check('dismissing an older banner leaves a newer needs-you pending',
+    raisedAtUnlock.length === 1 && raisedAtUnlock[0].title.startsWith('Needs you:'));
+unlocked.stop();
 
 // A change written while a refresh is still running must not be lost: the refresh
 // asked for meanwhile runs right after, and announces it exactly once.
