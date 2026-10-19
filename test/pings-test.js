@@ -67,6 +67,8 @@ check('actions in order: thread, ticket, MR, agent',
     full.map(action => action.label).join('|') === 'Thread (chat)|Ticket #12|MR !34|Agent: research');
 check('actions drop non-web URLs and unsafe session ids', full.length === 4);
 check('no url, no thread action', issueActions(issue({ url: null })).length === 0);
+check('session ids that would read as options are dropped',
+    issueActions(issue({ url: null, links: { sessions: [{ role: 'a', sessionId: '--help' }, { role: 'b', sessionId: '-x' }] } })).length === 0);
 
 // notifications
 check('nothing announced on first load', notificationsBetween(null, state({})).length === 0);

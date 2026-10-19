@@ -24,7 +24,9 @@ const STATUS_LABELS = {
     'failed': 'failed',
 };
 
-const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+// A leading "-" would reach `claude attach` as an option (e.g. "--help"), so ids must
+// start with a letter or digit.
+const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 
 /** Parse state.json text. Returns null when it is missing, malformed or a newer format. */
 export function parseState(text) {
