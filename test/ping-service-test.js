@@ -35,6 +35,8 @@ function write(text) {
     GLib.rename(`${statePath}.tmp`, statePath);
 }
 
+// Everything below runs in try, so the temp dir goes even when a check crashes.
+try {
 const service = new PingService();
 let last = null;
 service.connect(payload => {
@@ -174,8 +176,12 @@ await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => 
 check('a change written mid-refresh is picked up right after', seen.join(',') === 'new,needs-you');
 check('and announced once', raised.length === 1 && raised[0].title.startsWith('Needs you:'));
 busy.stop();
-// argv, not a command line: a temp dir path with a space must not split.
-GLib.spawn_sync(null, ['rm', '-rf', '--', stateHome], null, GLib.SpawnFlags.SEARCH_PATH, null);
+
+
+} finally {
+    // argv, not a command line: a temp dir path with a space must not split.
+    GLib.spawn_sync(null, ['rm', '-rf', '--', stateHome], null, GLib.SpawnFlags.SEARCH_PATH, null);
+}
 
 print('');
 print(failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`);

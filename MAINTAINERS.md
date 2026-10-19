@@ -82,7 +82,7 @@ Steps:
 # 1. bump metadata.json "version", then commit the release-worthy changes
 git add -A && git commit -m "feat: <what changed>"
 
-# 2. pre-flight: same checks CI will run
+# 2. pre-flight: the checks to run before tagging; CI itself only builds
 ( for test in test/*-test.js; do gjs -m "$test" || exit 1; done ) && ./build.sh
 
 # 3. push, then tag + push the tag to trigger the release build
