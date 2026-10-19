@@ -48,13 +48,17 @@ export function parseState(text) {
             open: Number(state.counts?.open) || 0,
             untriaged: Number(state.counts?.untriaged) || 0,
         },
-        issues: Array.isArray(state.issues) ? state.issues.filter(isIssueLike) : [],
-        otherPings: Array.isArray(state.otherPings) ? state.otherPings.filter(isIssueLike) : [],
+        issues: Array.isArray(state.issues) ? state.issues.filter(isIssueLike).map(withName) : [],
+        otherPings: Array.isArray(state.otherPings) ? state.otherPings.filter(isIssueLike).map(withName) : [],
     };
 }
 
 function isIssueLike(issue) {
     return issue && typeof issue === 'object' && Number.isInteger(issue.id);
+}
+
+function withName(issue) {
+    return typeof issue.name === 'string' && issue.name ? issue : { ...issue, name: '(untitled)' };
 }
 
 export function isStale(state, now) {

@@ -90,6 +90,7 @@ class PingIndicator extends PanelMenu.Button {
         }
         for (const issue of issues) {
             const item = new PopupMenu.PopupSubMenuMenuItem(`${issue.name}  ·  ${statusLabel(issue.status)}`);
+            item.label.add_style_class_name('pingwatch-issue-label');
             if (needsYou(issue))
                 item.label.style = EMPHASIS_STYLE.alert;
             for (const action of issueActions(issue))

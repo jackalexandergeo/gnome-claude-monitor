@@ -38,6 +38,9 @@ check('parseState rejects garbage', parseState('{not json') === null && parseSta
 check('parseState drops malformed issues',
     parseState(JSON.stringify({ version: 1, issues: [{ id: 1 }, { id: 'x' }, null, 'str'] })).issues.length === 1);
 check('parseState fills missing counts with 0', parseState(JSON.stringify({ version: 1 })).counts.today === 0);
+check('parseState names an unnamed issue',
+    parseState(JSON.stringify({ version: 1, issues: [{ id: 1 }, { id: 2, name: 7 }, { id: 3, name: 'ok' }] }))
+        .issues.map(item => item.name).join('|') === '(untitled)|(untitled)|ok');
 
 // staleness + panel
 check('fresh state is not stale', !isStale(state({}), NOW + 1000));

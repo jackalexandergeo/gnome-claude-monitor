@@ -55,6 +55,11 @@
     max-width: 28em;
 }
 
+/* pingwatch: a long issue name ellipsizes rather than widening the menu */
+.pingwatch-issue-label {
+    max-width: 34em;
+}
+
 .claude-row-detail {
     color: #9aa0a6;
     padding-left: 16px;
