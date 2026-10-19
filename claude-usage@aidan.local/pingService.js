@@ -10,6 +10,7 @@
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import Soup from 'gi://Soup?version=3.0';
 
 import {
     parseState, notificationsBetween, limitNotifications, announcedMap, stateFromAnnounced,
@@ -17,6 +18,7 @@ import {
 
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
 Gio._promisify(Gio.File.prototype, 'replace_contents_bytes_async', 'replace_contents_finish');
+Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
 
 const STATE_DIR = GLib.build_filenamev([GLib.get_user_state_dir(), 'pingwatch']);
 const STATE_FILE = 'state.json';
@@ -230,6 +232,31 @@ export class PingService {
     /** For tests: resolves once every save so far is on disk. */
     flushed() {
         return this._saveChain;
+    }
+
+    /**
+     * Send the user's approve/reject of a review to the hub, over its local socket (HTTP
+     * over a Unix socket: the hub accepts only this user's processes). Resolves to the
+     * HTTP status, or 0 when the hub could not be reached.
+     */
+    async decide(socketPath, issueId, gate, approve) {
+        if (!socketPath || !Number.isInteger(issueId))
+            return 0;
+        const session = new Soup.Session({ remote_connectable: Gio.UnixSocketAddress.new(socketPath), timeout: 10 });
+        const message = Soup.Message.new('POST', `http://pingwatch/v1/issues/${issueId}/decisions`);
+        message.set_request_body_from_bytes('application/json',
+            new GLib.Bytes(this._encoder.encode(JSON.stringify({ gate, approve }))));
+        try {
+            await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+        } catch (error) {
+            logError(error, `claude-usage: could not send the ${gate} decision to pingwatch`);
+            return 0;
+        }
+        const status = message.get_status();
+        if (status !== 200)
+            log(`claude-usage: pingwatch answered ${status} to the ${gate} decision for issue ${issueId}`);
+        this.refreshNow();
+        return status;
     }
 
     openURL(url) {

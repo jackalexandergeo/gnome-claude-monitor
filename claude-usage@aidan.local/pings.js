@@ -24,6 +24,7 @@ const STATUS_LABELS = {
     'needs-you': 'needs you',
     'in-review': 'in review',
     'mr-open': 'MR open',
+    'proposed': 'proposed',
     'done': 'done',
     'failed': 'failed',
 };
@@ -31,6 +32,9 @@ const STATUS_LABELS = {
 // A leading "-" would reach `claude attach` as an option (e.g. "--help"), so ids must
 // start with a letter or digit.
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+
+// The reviews a snapshot can say are waiting on the user's approve/reject.
+const DECISION_GATES = ['ticket', 'change'];
 
 /** Parse state.json text. Returns null when it is missing, malformed or a newer format. */
 export function parseState(text) {
@@ -46,6 +50,8 @@ export function parseState(text) {
         return null;
     return {
         updatedAt: Number(state.updatedAt) || 0,
+        // where to send decisions; only an absolute path is taken
+        hubSocket: typeof state.hub?.socket === 'string' && state.hub.socket.startsWith('/') ? state.hub.socket : null,
         counts: {
             today: Number(state.counts?.today) || 0,
             total: Number(state.counts?.total) || 0,
@@ -131,6 +137,12 @@ export function issueActions(issue) {
     for (const session of Array.isArray(links.sessions) ? links.sessions : []) {
         if (session && SESSION_ID_PATTERN.test(session.sessionId || ''))
             actions.push({ kind: 'session', label: `Agent: ${session.role || 'session'}`, sessionId: session.sessionId });
+    }
+    for (const gate of Array.isArray(issue.awaiting) ? issue.awaiting : []) {
+        if (!DECISION_GATES.includes(gate))
+            continue;
+        actions.push({ kind: 'decision', label: `Approve the ${gate}`, gate, approve: true });
+        actions.push({ kind: 'decision', label: `Reject the ${gate}`, gate, approve: false });
     }
     return actions;
 }

@@ -80,7 +80,11 @@ If a local tool writes an issue snapshot to `$XDG_STATE_HOME/pingwatch/state.jso
 usage one: `💬 3`, orange while issues are open and red with `!` when one needs you.
 Its dropdown lists each issue as `[project]: title · status`, with links to the source
 thread, the ticket, any merge requests, and **Agent: <role>** entries that open
-`claude attach <id>` in a terminal. New issues and "needs you" changes raise a desktop
+`claude attach <id>` in a terminal. When the snapshot says an issue asks something
+(`question`) or a review waits on you (`awaiting: ["ticket" | "change"]`), the issue shows
+the question and **Approve / Reject** items, which POST
+`{"gate": ..., "approve": true | false}` to `/v1/issues/<id>/decisions` over the Unix socket
+named in `hub.socket`. New issues and "needs you" changes raise a desktop
 notification; clicking it opens the thread. Changes made while the screen was locked are
 announced after unlock (what was announced is kept in
 `$XDG_STATE_HOME/claude-usage/pings-announced.json`), and more than four at once fold into
@@ -89,13 +93,14 @@ one summary. Without that file the button never shows.
 The snapshot format (version 1):
 
 ```json
-{"version": 1, "updatedAt": 1760000000000,
+{"version": 1, "updatedAt": 1760000000000, "hub": {"socket": "/run/user/1000/pingwatch/hub.sock"},
  "counts": {"today": 1, "total": 4, "open": 1, "untriaged": 0},
  "issues": [{"id": 7, "name": "[demo]: Build server disk full", "status": "new", "kind": "issue",
              "source": "chat", "url": "https://…", "updatedAt": 1760000000000,
              "links": {"ticket": {"url": "https://…", "reference": "#12"},
                        "mergeRequests": [{"url": "https://…", "reference": "!34"}],
                        "sessions": [{"role": "research", "sessionId": "a1b2c3d4"}]},
+             "question": null, "awaiting": [],
              "lastPing": {"author": "alex", "preview": "can you check the disk?", "createdAt": 1760000000000}}],
  "otherPings": []}
 ```

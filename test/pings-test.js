@@ -73,6 +73,13 @@ check('actions in order: thread, ticket, MR, agent',
     full.map(action => action.label).join('|') === 'Thread (chat)|Ticket #12|MR !34|Agent: research');
 check('actions drop non-web URLs and unsafe session ids', full.length === 4);
 check('no url, no thread action', issueActions(issue({ url: null })).length === 0);
+const deciding = issueActions(issue({ url: null, awaiting: ['ticket', 'everything'] }));
+check('a waiting review offers approve and reject, and only for known gates',
+    deciding.map(action => action.label).join('|') === 'Approve the ticket|Reject the ticket' &&
+    deciding.every(action => action.kind === 'decision' && action.gate === 'ticket'));
+check('the hub socket is taken only as an absolute path',
+    parseState(JSON.stringify({ version: 1, hub: { socket: '/run/user/1/pingwatch/hub.sock' } })).hubSocket === '/run/user/1/pingwatch/hub.sock' &&
+    parseState(JSON.stringify({ version: 1, hub: { socket: 'relative.sock' } })).hubSocket === null);
 check('session ids that would read as options are dropped',
     issueActions(issue({ url: null, links: { sessions: [{ role: 'a', sessionId: '--help' }, { role: 'b', sessionId: '-x' }] } })).length === 0);
 

@@ -112,8 +112,15 @@ class PingIndicator extends PanelMenu.Button {
                 item.label.style = EMPHASIS_STYLE.alert;
                 status.style = EMPHASIS_STYLE.alert;
             }
+            if (typeof issue.question === 'string' && issue.question) {
+                const question = new PopupMenu.PopupMenuItem(`Asks: ${issue.question}`, { reactive: false });
+                question.label.style_class = 'pingwatch-preview';
+                question.label.style = EMPHASIS_STYLE.alert;
+                question.label.clutter_text.line_wrap = true;
+                item.menu.addMenuItem(question);
+            }
             for (const action of issueActions(issue))
-                item.menu.addMenuItem(this._actionItem(action));
+                item.menu.addMenuItem(this._actionItem(action, issue, state));
             const last = issue.lastPing || {};
             if (last.preview) {
                 const when = last.createdAt ? `${formatAgo(now - last.createdAt)}  ` : '';
@@ -159,13 +166,15 @@ class PingIndicator extends PanelMenu.Button {
         }
     }
 
-    _actionItem(action) {
+    _actionItem(action, issue = null, state = null) {
         const item = new PopupMenu.PopupMenuItem(action.label);
         item.connect('activate', () => {
             if (action.kind === 'url')
                 this._service.openURL(action.url);
             else if (action.kind === 'session')
                 this._service.attachSession(action.sessionId);
+            else if (action.kind === 'decision')
+                this._service.decide(state?.hubSocket, issue.id, action.gate, action.approve);
         });
         return item;
     }
