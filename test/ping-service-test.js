@@ -96,16 +96,32 @@ const afterUnlockAgain = new PingService();
 afterUnlockAgain.connect(payload => announced.push(...payload.notifications));
 await afterUnlockAgain.refreshNow();
 
-// Two refreshes at once must not announce the same change twice.
-write(snapshot('new'));
-await afterUnlockAgain.refreshNow();
-announced.length = 0;
-write(snapshot('needs-you'));
-await Promise.all([afterUnlockAgain.refreshNow(), afterUnlockAgain.refreshNow()]);
-await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => resolve() ?? GLib.SOURCE_REMOVE));
-check('overlapping refreshes announce once', announced.length === 1);
 afterUnlockAgain.stop();
-GLib.spawn_command_line_sync(`rm -rf ${stateHome}`);
+
+// A change written while a refresh is still running must not be lost: the refresh
+// asked for meanwhile runs right after, and announces it exactly once.
+write(snapshot('new'));
+const busy = new PingService();
+const seen = [];
+const raised = [];
+let changedMidRefresh = false;
+busy.connect(payload => {
+    seen.push(payload.state?.issues[0]?.status);
+    raised.push(...payload.notifications);
+    if (!changedMidRefresh) {
+        changedMidRefresh = true;
+        write(snapshot('needs-you'));
+        busy.refreshNow();   // lands while the first refresh is still running
+        busy.refreshNow();   // and a second ask must not run a third refresh
+    }
+});
+await busy.refreshNow();
+await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => resolve() ?? GLib.SOURCE_REMOVE));
+check('a change written mid-refresh is picked up right after', seen.join(',') === 'new,needs-you');
+check('and announced once', raised.length === 1 && raised[0].title.startsWith('Needs you:'));
+busy.stop();
+// argv, not a command line: a temp dir path with a space must not split.
+GLib.spawn_sync(null, ['rm', '-rf', '--', stateHome], null, GLib.SpawnFlags.SEARCH_PATH, null);
 
 print('');
 print(failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`);
