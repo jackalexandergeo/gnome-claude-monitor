@@ -147,10 +147,12 @@ export function notificationsBetween(previous, next) {
     for (const issue of next.issues) {
         const old = before.get(issue.id);
         if (needsYou(issue) && !(old && needsYou(old))) {
-            notifications.push({ title: `Needs you: ${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url });
+            notifications.push({
+                title: `Needs you: ${issue.name}`, body: issue.lastPing?.preview || '', url: issue.url, issueIds: [issue.id],
+            });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
-            notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url });
+            notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url, issueIds: [issue.id] });
         }
     }
     return notifications;
@@ -161,15 +163,24 @@ export function limitNotifications(notifications) {
     if (notifications.length <= MAX_NOTIFICATIONS_AT_ONCE)
         return notifications;
     const shown = notifications.slice(0, MAX_NOTIFICATIONS_AT_ONCE - 1);
-    const rest = notifications.length - shown.length;
-    return [...shown, { title: `${rest} more issue updates`, body: 'Open the Issues menu to see them', url: null }];
+    const folded = notifications.slice(shown.length);
+    return [...shown, {
+        title: `${folded.length} more issue updates`, body: 'Open the Issues menu to see them', url: null,
+        issueIds: folded.flatMap(notification => notification.issueIds ?? []),
+    }];
 }
 
-/** The part of a snapshot worth remembering between sessions: each issue's status and kind. */
-export function announcedMap(state) {
+/**
+ * The part of a snapshot worth remembering between sessions: each issue's status and kind.
+ * Issues in `unacknowledged` (a notification raised but not yet dismissed) are left out,
+ * so if the shell clears that notification (it does on every lock) it is raised again.
+ */
+export function announcedMap(state, unacknowledged = new Set()) {
     const map = {};
-    for (const issue of state?.issues ?? [])
-        map[issue.id] = { status: issue.status, kind: issue.kind };
+    for (const issue of state?.issues ?? []) {
+        if (!unacknowledged.has(issue.id))
+            map[issue.id] = { status: issue.status, kind: issue.kind };
+    }
     return map;
 }
 

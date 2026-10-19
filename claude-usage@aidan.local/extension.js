@@ -75,7 +75,7 @@ export default class ClaudeUsageExtension extends Extension {
 
     // One source for every pingwatch notification. The shell destroys a source once its
     // last notification is dismissed, so it is recreated on demand.
-    _notify({ title, body, url }) {
+    _notify({ title, body, url, issueIds }) {
         if (!this._notificationSource) {
             this._notificationSource = new MessageTray.Source({ title: 'pingwatch', iconName: 'mail-unread-symbolic' });
             this._notificationSource.connect('destroy', () => {
@@ -86,6 +86,12 @@ export default class ClaudeUsageExtension extends Extension {
         const notification = new MessageTray.Notification({ source: this._notificationSource, title, body });
         if (url)
             notification.connect('activated', () => this._pingService?.openURL(url));
+        // Only the user's own dismissal (or click) settles it. Cleared by a lock or a disable
+        // (SOURCE_CLOSED), it is raised again next time.
+        notification.connect('destroy', (_notification, reason) => {
+            if (reason === MessageTray.NotificationDestroyedReason.DISMISSED)
+                this._pingService?.acknowledge(issueIds ?? []);
+        });
         this._notificationSource.addNotification(notification);
     }
 

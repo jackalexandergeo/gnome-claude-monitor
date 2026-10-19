@@ -36,6 +36,11 @@ export class PingService {
         this._state = null;
         this._announced = undefined;   // undefined: not loaded yet; null: nothing remembered
         this._announcedText = null;
+        this._lastSnapshot = null;
+        this._unacknowledged = new Set();   // issue ids with a notification not yet dismissed
+        // Saves run one after another and are not cancelled by stop(): the shell disables
+        // the extension on lock, and the last save is the one that matters then.
+        this._saveChain = Promise.resolve();
         this._refreshing = false;
         this._refreshAgain = false;
         this._stopped = false;
@@ -156,8 +161,11 @@ export class PingService {
         if (next) {
             // Nothing remembered (first ever start): take what is there as already seen.
             notifications = limitNotifications(notificationsBetween(this._announced, next));
+            for (const notification of notifications)
+                notification.issueIds.forEach(issueId => this._unacknowledged.add(issueId));
             this._announced = stateFromAnnounced(announcedMap(next));
-            this._saveAnnounced(announcedMap(next));
+            this._lastSnapshot = next;
+            this._saveAnnounced();
         }
         this._state = state;
         const payload = { state, now: Date.now(), notifications };
@@ -179,20 +187,37 @@ export class PingService {
         }
     }
 
-    async _saveAnnounced(map) {
-        const text = JSON.stringify(map);
+    /** The user dismissed (or clicked) the notification for these issues: they stay announced. */
+    acknowledge(issueIds) {
+        issueIds.forEach(issueId => this._unacknowledged.delete(issueId));
+        this._saveAnnounced();
+    }
+
+    _saveAnnounced() {
+        if (!this._lastSnapshot)
+            return this._saveChain;
+        const text = JSON.stringify(announcedMap(this._lastSnapshot, this._unacknowledged));
         if (text === this._announcedText)
-            return;
+            return this._saveChain;
         this._announcedText = text;
+        this._saveChain = this._saveChain.then(() => this._write(text));
+        return this._saveChain;
+    }
+
+    async _write(text) {
         try {
             GLib.mkdir_with_parents(ANNOUNCED_DIR, 0o700);
             const file = Gio.File.new_for_path(GLib.build_filenamev([ANNOUNCED_DIR, ANNOUNCED_FILE]));
             await file.replace_contents_bytes_async(new GLib.Bytes(this._encoder.encode(text)), null, false,
-                Gio.FileCreateFlags.REPLACE_DESTINATION, this._cancellable);
+                Gio.FileCreateFlags.REPLACE_DESTINATION, null);
         } catch (error) {
-            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
-                logError(error, 'claude-usage: cannot save announced pings');
+            logError(error, 'claude-usage: cannot save announced pings');
         }
+    }
+
+    /** For tests: resolves once every save so far is on disk. */
+    flushed() {
+        return this._saveChain;
     }
 
     openURL(url) {
