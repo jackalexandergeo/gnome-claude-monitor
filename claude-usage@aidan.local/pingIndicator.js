@@ -97,10 +97,19 @@ class PingIndicator extends PanelMenu.Button {
             return;
         }
         for (const issue of issues) {
-            const item = new PopupMenu.PopupSubMenuMenuItem(`${issue.name}  ·  ${statusLabel(issue.status)}`);
+            // The name is capped and ellipsizes; the status is its own label so it always shows.
+            const item = new PopupMenu.PopupSubMenuMenuItem(issue.name);
             item.label.add_style_class_name('pingwatch-issue-label');
-            if (needsYou(issue))
+            const status = new St.Label({
+                text: `·  ${statusLabel(issue.status)}`,
+                style_class: 'pingwatch-issue-status',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            item.insert_child_above(status, item.label);
+            if (needsYou(issue)) {
                 item.label.style = EMPHASIS_STYLE.alert;
+                status.style = EMPHASIS_STYLE.alert;
+            }
             for (const action of issueActions(issue))
                 item.menu.addMenuItem(this._actionItem(action));
             const last = issue.lastPing || {};
@@ -131,9 +140,11 @@ class PingIndicator extends PanelMenu.Button {
             const when = issue.updatedAt ? ` · ${formatAgo(now - issue.updatedAt)}` : '';
             const thread = issueActions(issue).find(action => action.kind === 'url');
             const text = `${issue.kind || '?'} · ${issue.name}${when}`;
-            this._otherPings.menu.addMenuItem(thread
+            const row = thread
                 ? this._actionItem({ ...thread, label: text })
-                : new PopupMenu.PopupMenuItem(text, { reactive: false }));
+                : new PopupMenu.PopupMenuItem(text, { reactive: false });
+            row.label.add_style_class_name('pingwatch-issue-label');
+            this._otherPings.menu.addMenuItem(row);
         }
     }
 

@@ -60,6 +60,11 @@
     max-width: 34em;
 }
 
+/* pingwatch: the status after a (possibly ellipsized) issue name */
+.pingwatch-issue-status {
+    padding-left: 6px;
+}
+
 .claude-row-detail {
     color: #9aa0a6;
     padding-left: 16px;
