@@ -23,6 +23,7 @@ echo "Packing $ASSET..."
 ( cd "$SRC" && zip -r -X "$OUT/$ASSET" \
     metadata.json \
     extension.js prefs.js dataService.js indicator.js blocks.js \
+    pings.js pingService.js pingIndicator.js \
     stylesheet.css \
     schemas icons \
     -x '*.DS_Store' >/dev/null )

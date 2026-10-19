@@ -73,6 +73,33 @@ Click it for the full picture:
 - **Status line** — e.g. `Updated 12s ago · source: api`, or in red `⚠ Pull failed: HTTP 429`
 - **Refresh now** — force an immediate update
 
+### Optional: an Issues button for agent pipelines
+
+If a local tool writes an issue snapshot to `$XDG_STATE_HOME/pingwatch/state.json`
+(default `~/.local/state/pingwatch/state.json`), a second button appears next to the
+usage one: `💬 3`, orange while issues are open and red with `!` when one needs you.
+Its dropdown lists each issue as `[project]: title · status`, with links to the source
+thread, the ticket, any merge requests, and **Agent: <role>** entries that open
+`claude attach <id>` in a terminal. New issues and "needs you" changes raise a desktop
+notification; clicking it opens the thread. Without that file the button never shows.
+
+The snapshot format (version 1):
+
+```json
+{"version": 1, "updatedAt": 1760000000000,
+ "counts": {"today": 1, "total": 4, "open": 1, "untriaged": 0},
+ "issues": [{"id": 7, "name": "[demo]: Build server disk full", "status": "new", "kind": "issue",
+             "source": "chat", "url": "https://…", "updatedAt": 1760000000000,
+             "links": {"ticket": {"url": "https://…", "reference": "#12"},
+                       "mergeRequests": [{"url": "https://…", "reference": "!34"}],
+                       "sessions": [{"role": "research", "sessionId": "a1b2c3d4"}]},
+             "lastPing": {"author": "alex", "preview": "can you check the disk?", "createdAt": 1760000000000}}],
+ "otherPings": []}
+```
+
+The writer should refresh `updatedAt` at least once a minute; after three minutes without
+an update the button shows `–` and the dropdown says the hub is not responding.
+
 **Settings:** pick where it sits in the top bar (left / center / right, plus position) —
 changes apply live. Open them any time with `gnome-extensions prefs claude-usage@aidan.local`.
 
@@ -84,6 +111,7 @@ changes apply live. Open them any time with `gnome-extensions prefs claude-usage
 | 5h + weekly usage % and reset | `GET https://api.anthropic.com/api/oauth/usage` — the same endpoint Claude Code's `/usage` and claude.ai/settings/usage use |
 | Plan tier | `~/.claude.json` (`oauthAccount`) — local |
 | Today's tokens + per-session tokens | `~/.claude/projects/*/*.jsonl` — local (transcript entries joined to sessions by `sessionId`) |
+| Issues (optional) | `~/.local/state/pingwatch/state.json` — local, written by your own tool |
 
 The usage call reuses your existing local OAuth token from `~/.claude/.credentials.json` as a
 Bearer token to read **your own** usage. The token is read locally and sent only to

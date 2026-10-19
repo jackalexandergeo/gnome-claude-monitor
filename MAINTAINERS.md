@@ -11,6 +11,9 @@ claude-usage@aidan.local/   the extension
   extension.js              enable()/disable(), panel placement
   dataService.js            file I/O, usage API (libsoup), refresh engine
   blocks.js                 pure 5h-window math (unit-tested)
+  pings.js                  pure logic for the optional Issues button (unit-tested)
+  pingService.js            watches the Issues snapshot file, opens links/sessions
+  pingIndicator.js          the Issues panel button + dropdown
   indicator.js              panel button + dropdown UI
   prefs.js                  preferences (libadwaita)
   stylesheet.css            colours
@@ -20,6 +23,7 @@ build.sh                    build the release zip
 install.sh                  install from source (local dev)
 online-install.sh           one-liner installer (downloads latest release)
 test/blocks-test.js         `gjs -m test/blocks-test.js`
+test/pings-test.js          `gjs -m test/pings-test.js`
 ```
 
 ## Local dev loop
@@ -43,6 +47,7 @@ Pure logic (5h-window math, token sums) is unit-tested with plain gjs — no she
 
 ```sh
 gjs -m test/blocks-test.js
+gjs -m test/pings-test.js
 ```
 
 ## Build a zip locally
@@ -76,7 +81,7 @@ Steps:
 git add -A && git commit -m "feat: <what changed>"
 
 # 2. pre-flight: same checks CI will run
-gjs -m test/blocks-test.js && ./build.sh
+gjs -m test/blocks-test.js && gjs -m test/pings-test.js && ./build.sh
 
 # 3. push, then tag + push the tag to trigger the release build
 git push origin main

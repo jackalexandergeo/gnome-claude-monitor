@@ -50,6 +50,11 @@
     font-weight: bold;
 }
 
+/* pingwatch: a ping preview wraps instead of widening the whole menu */
+.pingwatch-preview {
+    max-width: 28em;
+}
+
 .claude-row-detail {
     color: #9aa0a6;
     padding-left: 16px;
