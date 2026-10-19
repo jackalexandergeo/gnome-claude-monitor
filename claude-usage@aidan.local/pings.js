@@ -193,15 +193,21 @@ export function notificationsBetween(previous, next) {
     const notifications = [];
     for (const issue of next.issues) {
         const old = before.get(issue.id);
-        // A new question on an issue that already needed the user is news too: a review can
-        // drop below the bar while an agent's earlier question is still open.
-        const question = typeof issue.question === 'string' ? issue.question : null;
-        if (needsYou(issue) && !(old && needsYou(old) && (old.question ?? null) === question)) {
-            // Pending until dismissed; `baseline` is what the issue was before, which is
-            // what gets remembered meanwhile (see announcedMap).
+        // A new question on an issue that already needed the user is news too (a review can
+        // drop below the bar while an earlier question is still open), but a question that
+        // went away, or one remembered from before questions were kept, is not.
+        const question = typeof issue.question === 'string' && issue.question ? issue.question : null;
+        const newQuestion = question !== null && old?.question !== undefined && (old.question ?? null) !== question;
+        if (needsYou(issue) && !(old && needsYou(old) && !newQuestion)) {
+            // Pending until dismissed. `baseline` is remembered meanwhile (see announcedMap):
+            // the status before, but this issue's kind, so that once it is answered it never
+            // comes back as a "New issue" (the needs-you banner stood in for that one).
             notifications.push({
                 title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: question || issue.lastPing?.preview || '', url: issue.url,
-                pending: [{ id: issue.id, baseline: old ? { status: old.status, kind: old.kind, question: old.question ?? null } : null }],
+                pending: [{
+                    id: issue.id,
+                    baseline: { status: old?.status ?? null, kind: issue.kind, question: old ? old.question ?? null : null },
+                }],
             });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
@@ -233,17 +239,17 @@ export function limitNotifications(notifications) {
 
 /**
  * The part of a snapshot worth remembering between sessions: each issue's status and kind.
- * An issue with a needs-you notification not yet dismissed (`pending`: id -> its state
- * before that) is remembered in its earlier state, so if the shell clears the notification
- * (it does on every lock) and the issue still needs you, it is raised again; if it has
- * moved on meanwhile, nothing is. A New-issue banner is announced once and never pends.
+ * An issue with a needs-you notification not yet dismissed (`pending`: id -> its baseline)
+ * is remembered as that baseline, so if the shell clears the notification (it does on every
+ * lock) and the issue still needs you, it is raised again; if it has moved on meanwhile,
+ * nothing is. A New-issue banner is announced once and never pends.
  */
 export function announcedMap(state, pending = new Map()) {
     const map = {};
     for (const issue of state?.issues ?? []) {
         if (!pending.has(issue.id))
             map[issue.id] = { status: issue.status, kind: issue.kind, question: typeof issue.question === 'string' ? issue.question : null };
-        else if (pending.get(issue.id))
+        else
             map[issue.id] = pending.get(issue.id);
     }
     return map;
@@ -256,7 +262,11 @@ export function stateFromAnnounced(map) {
     return {
         issues: Object.entries(map)
             .filter(([id, issue]) => Number.isInteger(Number(id)) && issue && typeof issue === 'object')
-            .map(([id, issue]) => ({ id: Number(id), status: issue.status, kind: issue.kind, question: issue.question ?? null })),
+            // no "question" key: remembered before questions were kept, so unknown, not null
+            .map(([id, issue]) => ({
+                id: Number(id), status: issue.status, kind: issue.kind,
+                question: Object.hasOwn(issue, 'question') ? issue.question : undefined,
+            })),
     };
 }
 

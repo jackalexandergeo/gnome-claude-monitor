@@ -134,8 +134,20 @@ const pendingMap = announcedMap(state({ issues: [issue({ id: 1, status: 'needs-y
     new Map([[1, { status: 'new', kind: 'issue' }]]));
 check('a pending needs-you is remembered as it was before',
     pendingMap[1].status === 'new' && pendingMap[2].status === 'new');
-check('a pending issue with no earlier state is left out',
-    !(1 in announcedMap(state({ issues: [issue({ id: 1, status: 'needs-you' })] }), new Map([[1, null]]))));
+check('a pending issue is always remembered, as its baseline',
+    announcedMap(state({ issues: [issue({ id: 1, status: 'needs-you' })] }),
+        new Map([[1, { status: null, kind: 'issue', question: null }]]))[1].kind === 'issue');
+check('a question going away does not pop up',
+    notificationsBetween(waiting, state({ issues: [issue({ status: 'needs-you', question: null })] })).length === 0);
+check('an issue first seen needing you, once answered, is not a "New issue" later',
+    (() => {
+        const first = notificationsBetween(state({ issues: [] }), waiting)[0];
+        const remembered = stateFromAnnounced(JSON.parse(JSON.stringify(
+            announcedMap(waiting, new Map([[1, first.pending[0].baseline]])))));
+        return notificationsBetween(remembered, state({ issues: [issue({ status: 'in-review' })] })).length === 0;
+    })());
+check('a map remembered before questions were kept does not re-announce on upgrade',
+    notificationsBetween(stateFromAnnounced({ 1: { status: 'needs-you', kind: 'issue' } }), waiting).length === 0);
 const remembered = stateFromAnnounced(JSON.parse(JSON.stringify(announcedMap(triaged))));
 check('a remembered map round-trips through JSON',
     notificationsBetween(remembered, triaged).length === 0 &&
