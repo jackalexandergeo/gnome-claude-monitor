@@ -96,7 +96,7 @@ check('a dismissed notification is not raised again', afterDismissal.length === 
 thirdUnlock.stop();
 await thirdUnlock.flushed();
 
-// Review round 3, F1: a needs-you answered without touching its banner must not come back
+// A needs-you answered without touching its banner must not come back
 // as a "New issue" after the next unlock (nor after every one after that).
 async function lockCycle(statusesBeforeLock, statusAtUnlock) {
     const before = new PingService();
@@ -132,7 +132,7 @@ empty.stop();
 await empty.flushed();
 check('a New-issue banner is not raised again after a lock', (await lockCycle(['new'], 'new')).length === 0);
 
-// Review round 3, F2: dismissing an older banner must not settle a newer, unread needs-you.
+// Dismissing an older banner must not settle a newer, unread needs-you.
 write(JSON.stringify({ version: 1, updatedAt: Date.now(), counts: { open: 0 }, issues: [], otherPings: [] }));
 const fresh = new PingService();
 fresh.connect(() => {});
