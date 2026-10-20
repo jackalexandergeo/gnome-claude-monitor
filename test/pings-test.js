@@ -109,6 +109,12 @@ const boarded = issueActions(issue({ url: null, onBoard: true }));
 check('an issue with a card offers to open it on the board',
     boarded.length === 1 && boarded[0].kind === 'board' && boarded[0].label === 'Open on the board' &&
     issueActions(issue({ url: null, onBoard: 'yes' })).length === 0);
+const reviewing = issueActions(issue({ url: null, awaiting: ['review'] }));
+check('a low review of the opened MR offers to take it or have it fixed',
+    reviewing.map(action => action.label).join('|') === 'Take the MR as it is|Have it fixed' &&
+    reviewing.every(action => action.gate === 'review'));
+check('the MR states after the agents have names',
+    statusLabel('mr-reviewed') === 'MR reviewed: your turn' && statusLabel('awaiting-review') === 'awaits review');
 const scoping = issueActions(issue({ url: null, awaiting: ['scope'] }));
 check('an issue that may be someone else\'s offers to start anyway or leave it',
     scoping.map(action => action.label).join('|') === 'Start anyway|Leave it to them' &&

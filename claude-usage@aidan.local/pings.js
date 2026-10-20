@@ -24,6 +24,8 @@ const STATUS_LABELS = {
     'needs-you': 'needs you',
     'in-review': 'in review',
     'mr-open': 'MR open',
+    'mr-reviewed': 'MR reviewed: your turn',
+    'awaiting-review': 'awaits review',
     'proposed': 'proposed',
     'done': 'done',
     'theirs': "someone else's",
@@ -41,6 +43,7 @@ const DECISION_LABELS = {
     research: ['Accept the research', 'Send it back'],
     ticket: ['File the ticket', "Don't file it"],
     change: ['Open the draft MR', 'Drop the change'],
+    review: ['Take the MR as it is', 'Have it fixed'],
 };
 // What each answer does, said in the confirmation before it is sent.
 const DECISION_CONSEQUENCES = {
@@ -48,6 +51,7 @@ const DECISION_CONSEQUENCES = {
     research: ['The pipeline goes on with this research as it is.', "The research runs again with the reviewer's notes."],
     ticket: ['Files the ticket.', 'No ticket is filed for this issue.'],
     change: ['Pushes the branch and opens a draft MR.', 'The change is dropped; no MR is opened.'],
+    review: ['The MR is yours to review as it is.', "The agent fixes the review's findings on the same branch, then reviews the MR again."],
 };
 
 /** Parse state.json text. Returns null when it is missing, malformed or a newer format. */
