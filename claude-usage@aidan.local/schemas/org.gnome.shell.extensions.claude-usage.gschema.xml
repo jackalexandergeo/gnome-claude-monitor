@@ -4,6 +4,7 @@
     <value nick="left" value="0"/>
     <value nick="center" value="1"/>
     <value nick="right" value="2"/>
+    <value nick="left-middle" value="3"/>
   </enum>
   <schema id="org.gnome.shell.extensions.claude-usage"
           path="/org/gnome/shell/extensions/claude-usage/">

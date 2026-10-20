@@ -1,5 +1,7 @@
 /* extension.js — lifecycle orchestrator. Holds no module-level mutable state. */
 
+import GLib from 'gi://GLib';
+
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
@@ -9,6 +11,7 @@ import { ClaudeIndicator } from './indicator.js';
 import { PingIndicator } from './pingIndicator.js';
 import { PingService } from './pingService.js';
 import { BannerBook } from './pings.js';
+import { leftHalfMargin, shellBox } from './placement.js';
 
 const BOX_ACTORS = {
     left: () => Main.panel._leftBox,
@@ -27,7 +30,7 @@ export default class ClaudeUsageExtension extends Extension {
         Main.panel.addToStatusArea(
             this.uuid, this._indicator,
             this._settings.get_int('panel-position'),
-            this._settings.get_string('panel-box'));
+            shellBox(this._settings.get_string('panel-box')));
 
         // Keep the latest state so a re-position can repaint immediately.
         this._dataService.connect(state => {
@@ -49,12 +52,24 @@ export default class ClaudeUsageExtension extends Extension {
         });
 
         this._settingsChangedId = this._settings.connect('changed', () => this._reposition());
+        // In the middle of the left half, the margin follows the bar's and the buttons' widths.
+        this._widthWatches = [Main.panel, this._indicator.container, this._pingIndicator.container]
+            .map(actor => [actor, actor.connect('notify::width', () => this._queueCentering())]);
+        this._queueCentering();
 
         this._dataService.start();
         this._pingService.start();
     }
 
     disable() {
+        for (const [actor, id] of this._widthWatches ?? [])
+            actor.disconnect(id);
+        this._widthWatches = null;
+        if (this._centeringId) {
+            GLib.source_remove(this._centeringId);
+            this._centeringId = 0;
+        }
+        this._indicator?.container.set_style(null);
         if (this._settings && this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = 0;
@@ -138,10 +153,45 @@ export default class ClaudeUsageExtension extends Extension {
             parent.remove_child(container);
 
         const boxName = this._settings.get_string('panel-box');
-        const target = (BOX_ACTORS[boxName] || BOX_ACTORS.right)();
+        const target = BOX_ACTORS[shellBox(boxName)]();
         const count = target.get_n_children();
         const pos = Math.max(0, Math.min(this._settings.get_int('panel-position'), count));
         target.insert_child_at_index(container, pos);
         this._placePingIndicator();
+        this._centerInLeftHalf();
+        this._queueCentering();   // again once the new place has its widths
+    }
+
+    _queueCentering() {
+        if (this._centeringId)
+            return;
+        this._centeringId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._centeringId = 0;
+            this._centerInLeftHalf();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    // GNOME gives the left box only the width of what it holds, so in the middle of the left
+    // half the buttons are pushed right by a margin on the first of them. Anywhere else: none.
+    _centerInLeftHalf() {
+        const container = this._indicator?.container;
+        const parent = container?.get_parent();
+        if (!parent || !this._settings)
+            return;
+        let margin = 0;
+        if (this._settings.get_string('panel-box') === 'left-middle') {
+            let widthBefore = 0;
+            for (const child of parent.get_children()) {
+                if (child === container)
+                    break;
+                if (child.visible)
+                    widthBefore += child.width;
+            }
+            const issues = this._pingIndicator?.container;
+            const ownWidth = container.width + (issues?.visible ? issues.width : 0);
+            margin = leftHalfMargin(Main.panel.width, widthBefore, ownWidth);
+        }
+        container.set_style(margin ? `margin-left: ${margin}px;` : null);
     }
 }

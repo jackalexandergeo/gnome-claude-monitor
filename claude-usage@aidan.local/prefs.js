@@ -6,7 +6,7 @@ import Gio from 'gi://Gio';
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const BOXES = ['left', 'center', 'right'];
+import { BOXES, BOX_TITLES } from './placement.js';
 
 export default class ClaudeUsagePreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -22,12 +22,12 @@ export default class ClaudeUsagePreferences extends ExtensionPreferences {
         });
         page.add(group);
 
-        // Box (left / center / right)
+        // Box (left / center / right / middle of the left half)
         const boxRow = new Adw.ComboRow({
             title: 'Section',
             subtitle: 'Which part of the top bar',
         });
-        boxRow.model = new Gtk.StringList({ strings: ['Left', 'Center', 'Right'] });
+        boxRow.model = new Gtk.StringList({ strings: BOX_TITLES });
         boxRow.selected = Math.max(0, BOXES.indexOf(settings.get_string('panel-box')));
         boxRow.connect('notify::selected', () => {
             settings.set_string('panel-box', BOXES[boxRow.selected]);
