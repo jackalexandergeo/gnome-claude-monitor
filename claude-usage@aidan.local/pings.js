@@ -247,6 +247,13 @@ export function issueActions(issue) {
  * start) nothing is announced. After a lock or login the previous snapshot is the one
  * remembered on disk, so only what changed meanwhile is announced.
  */
+/** The issue's newest rename ({from, to, why}), or null. */
+export function lastRename(issue) {
+    const renamed = issue?.links?.renamed;
+    const last = Array.isArray(renamed) ? renamed[renamed.length - 1] : null;
+    return last && typeof last.from === 'string' && last.from ? last : null;
+}
+
 export function notificationsBetween(previous, next) {
     if (!previous || !next)
         return [];
@@ -273,6 +280,11 @@ export function notificationsBetween(previous, next) {
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
             const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
             notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url, pending: [] });
+        } else if (old && old.kind === 'issue' && old.name !== issue.name && lastRename(issue)) {
+            // The agents found out what it is: say so, or the user no longer knows which issue it is.
+            const rename = lastRename(issue);
+            notifications.push({ title: `Renamed: ${issue.name}`, body: `Was: ${old.name} (${rename.why || 'renamed'})`,
+                url: issue.url, pending: [] });
         }
     }
     return notifications;

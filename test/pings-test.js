@@ -3,7 +3,7 @@
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
-    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit,
+    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit, lastRename,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -142,6 +142,16 @@ check('session ids that would read as options are dropped',
 
 // notifications
 check('nothing announced on first load', notificationsBetween(null, state({})).length === 0);
+const beforeRename = state({ issues: [issue({ status: 'researching', name: '[p]: Ticket 12 problem' })] });
+const afterRename = state({ issues: [issue({ status: 'in-review', name: '[p]: Label printer skips a line',
+    links: { renamed: [{ from: 'Ticket 12 problem', to: 'Label printer skips a line', why: 'after research' }] } })] });
+const renames = notificationsBetween(beforeRename, afterRename);
+check('a renamed issue is announced with what it was called',
+    renames.length === 1 && renames[0].title === 'Renamed: [p]: Label printer skips a line' &&
+    renames[0].body === 'Was: [p]: Ticket 12 problem (after research)' &&
+    lastRename(afterRename.issues[0]).from === 'Ticket 12 problem' && lastRename(issue({})) === null);
+check('a name that changes without a rename is not announced',
+    notificationsBetween(beforeRename, state({ issues: [issue({ status: 'researching', name: '[p]: other' })] })).length === 0);
 const triaging = state({ issues: [issue({ status: 'triaging', kind: null })] });
 const triaged = state({ issues: [issue({})] });
 const announced = notificationsBetween(triaging, triaged);

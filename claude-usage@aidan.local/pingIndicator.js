@@ -15,7 +15,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
-    panelSummary, headerLine, issueActions, statusLabel, formatAgo, needsYou, truncate, usageLine,
+    panelSummary, headerLine, issueActions, statusLabel, formatAgo, needsYou, truncate, usageLine, lastRename,
 } from './pings.js';
 
 const MAX_ISSUES_SHOWN = 10;
@@ -125,6 +125,13 @@ class PingIndicator extends PanelMenu.Button {
                 question.label.style = EMPHASIS_STYLE.alert;
                 question.label.clutter_text.line_wrap = true;
                 item.menu.addMenuItem(question);
+            }
+            const rename = lastRename(issue);
+            if (rename) {
+                const was = new PopupMenu.PopupMenuItem(`Was: ${rename.from}`, { reactive: false });
+                was.label.style_class = 'claude-status-line pingwatch-preview';
+                was.label.clutter_text.line_wrap = true;
+                item.menu.addMenuItem(was);
             }
             const usage = usageLine(issue.usage);
             if (usage) {
