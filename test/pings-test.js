@@ -3,7 +3,7 @@
 import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
-    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate,
+    announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -58,6 +58,14 @@ check('a stale snapshot keeps the needs-you alert',
 
 // header
 check('header lists counts', headerLine(state({}), NOW) === 'Picked up today: 2 · total: 9 · need you: 0');
+check('an issue says how much Claude use its agents took',
+    usageLine({ fiveHour: { share: 2.2, ofLimit: 1.3 }, week: { share: 0.3, ofLimit: null } }) ===
+        'Usage: 2.2% of Claude use this 5 h (≈ 1.3% of the limit) · 0.3% of Claude use this week' &&
+    usageLine(null) === null && usageLine({ fiveHour: { share: 'x' } }) === null);
+check('the header adds up the agents\' share of the 5-hour limit',
+    agentsOfLimit({ issues: [{ usage: { fiveHour: { ofLimit: 1.25 } } }, { usage: { fiveHour: { ofLimit: 2 } } }, {}] }) === 3.3 &&
+    agentsOfLimit({ issues: [{}] }) === null &&
+    headerLine(state({ issues: [issue({ usage: { fiveHour: { share: 9, ofLimit: 4 } } })] }), NOW).endsWith('agents ≈ 4% of the 5-hour limit'));
 check('header warns when stale', headerLine(state({}), NOW + STALE_AFTER_MS + 1).startsWith('⚠ hub not responding'));
 check('header mentions untriaged', headerLine(state({ counts: { today: 0, total: 0, open: 0, untriaged: 3 } }), NOW).includes('untriaged: 3'));
 

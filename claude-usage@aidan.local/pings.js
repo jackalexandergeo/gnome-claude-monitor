@@ -164,8 +164,36 @@ export function headerLine(state, now) {
     ];
     if (state.counts.untriaged > 0)
         parts.push(`untriaged: ${state.counts.untriaged}`);
+    const ofLimit = agentsOfLimit(state);
+    if (ofLimit)
+        parts.push(`agents ≈ ${ofLimit}% of the 5-hour limit`);
     const line = [...sourceWarnings(state, now), parts.join(' · ')].join('  ·  ');
     return isStale(state, now) ? `⚠ hub not responding · ${line}` : line;
+}
+
+/**
+ * One issue's agents' share of Claude use, for its menu: "Usage: 2.2% of Claude use this 5 h
+ * (≈ 1.3% of the limit) · 0.3% of Claude use this week", or null until the hub has worked it out.
+ */
+export function usageLine(usage) {
+    if (!usage || typeof usage !== 'object')
+        return null;
+    const parts = [];
+    for (const [key, window] of [['fiveHour', 'this 5 h'], ['week', 'this week']]) {
+        const shown = usage[key];
+        if (!shown || typeof shown.share !== 'number')
+            continue;
+        const limit = typeof shown.ofLimit === 'number' ? ` (≈ ${shown.ofLimit}% of the limit)` : '';
+        parts.push(`${shown.share}% of Claude use ${window}${limit}`);
+    }
+    return parts.length ? `Usage: ${parts.join(' · ')}` : null;
+}
+
+/** Every issue's agents together: ≈ % of the 5-hour limit, or null when not known. */
+export function agentsOfLimit(state) {
+    const shares = (state?.issues ?? []).map(issue => issue.usage?.fiveHour?.ofLimit)
+        .filter(value => typeof value === 'number');
+    return shares.length ? Math.round(shares.reduce((sum, value) => sum + value, 0) * 10) / 10 : null;
 }
 
 function isWebURL(url) {
