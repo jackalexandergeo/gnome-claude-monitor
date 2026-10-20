@@ -240,8 +240,11 @@ unlocked.stop();
     const socketPath = GLib.build_filenamev([stateHome, 'board-hub.sock']);
     const listener = new Gio.SocketListener();
     listener.add_address(Gio.UnixSocketAddress.new(socketPath), Gio.SocketType.STREAM, Gio.SocketProtocol.DEFAULT, null);
+    const page = GLib.filename_to_uri(GLib.build_filenamev([stateHome, 'board-open', 'a1b2.html']), null);
     const answers = [
-        ['200 OK', '{"url": "http://127.0.0.1:4321/?code=once#card=c7"}'],
+        ['200 OK', JSON.stringify({ url: page })],
+        ['200 OK', '{"url": "http://127.0.0.1:4321/#code=once&card=c7"}'],
+        ['200 OK', JSON.stringify({ url: GLib.filename_to_uri(GLib.build_filenamev([stateHome, 'board-open', '..', 'x.html']), null) })],
         ['200 OK', '{"url": "file:///etc/passwd"}'],
         ['404 Not Found', '{"error": "issue 7 has no card on the board"}'],
     ];
@@ -275,9 +278,11 @@ unlocked.stop();
     boarding.openURL = url => opened.push(url);
     const first = await boarding.openOnBoard(socketPath, 7);
     check('openOnBoard POSTs to the issue\'s board-link path', requests[0].startsWith('POST /v1/issues/7/board-link'));
-    check('and opens the link it got', first.error === null && opened.join() === 'http://127.0.0.1:4321/?code=once#card=c7');
-    const notWeb = await boarding.openOnBoard(socketPath, 7);
-    check('a link that is not a web address is not opened', notWeb.error && opened.length === 1);
+    check('and opens the hub\'s own sign-in page', first.error === null && opened.join() === page);
+    for (const what of ['a web link (its code would sit on a command line)', 'a page outside the folder', 'any other file']) {
+        const refused = await boarding.openOnBoard(socketPath, 7);
+        check(`${what} is not opened`, refused.error && opened.length === 1);
+    }
     const noCard = await boarding.openOnBoard(socketPath, 7);
     check('the hub\'s reason comes back when there is no card', noCard.status === 404 &&
         noCard.error === 'issue 7 has no card on the board');

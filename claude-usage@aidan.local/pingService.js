@@ -27,6 +27,21 @@ const ANNOUNCED_FILE = 'pings-announced.json';
 const REFRESH_SECS = 15;       // re-read even without a change event: staleness + late-created dir
 const DEBOUNCE_MS = 200;       // the hub replaces the file atomically; coalesce the burst of events
 
+/** A file:// page in the hub's runtime folder (next to its socket), under board-open/. */
+export function isPrivateBoardPage(url, socketPath) {
+    if (typeof url !== 'string' || !url.startsWith('file://') || !socketPath)
+        return false;
+    let path;
+    try {
+        [path] = GLib.filename_from_uri(url);
+    } catch (_error) {
+        return false;
+    }
+    const folder = GLib.build_filenamev([GLib.path_get_dirname(socketPath), 'board-open']);
+    return path.startsWith(`${folder}/`) && path.endsWith('.html') && !path.split('/').includes('..') &&
+        GLib.path_get_dirname(path) === folder;
+}
+
 export class PingService {
     constructor() {
         this._cancellable = new Gio.Cancellable();
@@ -282,8 +297,10 @@ export class PingService {
     }
 
     /**
-     * Open the issue's card on the board. The hub hands out a link with a sign-in code
-     * that works once, so it is asked each time. Resolves to { status, error }.
+     * Open the issue's card on the board. The hub hands out a private page in its own
+     * runtime folder that signs in once (a sign-in code on a command line could be read
+     * and spent by another user), so it is asked each time, and nothing else is opened.
+     * Resolves to { status, error }.
      */
     async openOnBoard(socketPath, issueId) {
         if (!Number.isInteger(issueId))
@@ -292,8 +309,8 @@ export class PingService {
             `the board link for issue ${issueId}`);
         if (error)
             return { status, error };
-        if (typeof body?.url !== 'string' || !/^https?:\/\//.test(body.url))
-            return { status: 0, error: 'pingwatch sent a board link that is not a web address' };
+        if (!isPrivateBoardPage(body?.url, socketPath))
+            return { status: 0, error: 'pingwatch sent a board link that is not its own sign-in page' };
         this.openURL(body.url);
         return { status, error: null };
     }

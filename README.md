@@ -80,7 +80,8 @@ If a local tool writes an issue snapshot to `$XDG_STATE_HOME/pingwatch/state.jso
 usage one: `💬 3`, orange while issues are open and red with `!` when one needs you.
 Its dropdown lists each issue as `[project]: title · status`, with links to the source
 thread, the ticket, any merge requests, **Open on the board** when the issue has a card
-on the service's board (the hub hands out a link that signs in once), and **Agent: <role>**
+on the service's board (the hub hands out a private page in its runtime folder that signs in
+once; nothing else is opened), and **Agent: <role>**
 entries that open `claude attach <id>` in a terminal. When the snapshot says an issue asks something
 (`question`, e.g. a reviewer's score and summary) or a review waits on you
 (`awaiting: ["scope" | "research" | "ticket" | "change"]`), the notification and the issue
