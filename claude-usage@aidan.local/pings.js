@@ -29,6 +29,7 @@ const STATUS_LABELS = {
     'proposed': 'proposed',
     'done': 'done',
     'theirs': "someone else's",
+    'wont-do': "won't do",
     'failed': 'failed',
 };
 
@@ -45,6 +46,10 @@ const DECISION_LABELS = {
     change: ['Open the draft MR', 'Drop the change'],
     review: ['Take the MR as it is', 'Have it fixed'],
 };
+// Closing an issue as out of scope, from its menu: said in the confirmation first.
+const CLOSED_STATUSES = new Set(['done', 'theirs', 'wont-do', 'ignored']);
+const WONT_DO_CONSEQUENCE = 'The issue is closed as out of scope and its agent stops. A new ping on the thread brings it back.';
+
 // What each answer does, said in the confirmation before it is sent.
 const DECISION_CONSEQUENCES = {
     scope: ['The agents start working on this issue.', "Nothing more runs; the issue is marked as someone else's."],
@@ -231,6 +236,8 @@ export function issueActions(issue) {
         actions.push({ kind: 'decision', label: approveLabel, gate, approve: true, consequence: approveConsequence });
         actions.push({ kind: 'decision', label: rejectLabel, gate, approve: false, consequence: rejectConsequence });
     }
+    if (!CLOSED_STATUSES.has(issue.status))
+        actions.push({ kind: 'close', label: "Won't do", consequence: WONT_DO_CONSEQUENCE });
     return actions;
 }
 

@@ -296,6 +296,17 @@ export class PingService {
         return { status, error };
     }
 
+    /** Close an issue as won't do (out of scope). Resolves to { status, error }. */
+    async close(socketPath, issueId) {
+        if (!Number.isInteger(issueId))
+            return { status: 0, error: 'pingwatch did not say which issue this is' };
+        const { status, error } = await this._post(socketPath, `/v1/issues/${issueId}/close`, {},
+            `closing issue ${issueId}`);
+        if (status !== 0)
+            this.refreshNow();
+        return { status, error };
+    }
+
     /**
      * Open the issue's card on the board. The hub hands out a private page in its own
      * runtime folder that signs in once (a sign-in code on a command line could be read

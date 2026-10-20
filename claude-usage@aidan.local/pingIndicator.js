@@ -192,7 +192,7 @@ class PingIndicator extends PanelMenu.Button {
                     if (result.error)
                         this._onProblem?.('Could not open the board', `${issue.name}: ${result.error}`);
                 });
-            else if (action.kind === 'decision')
+            else if (action.kind === 'decision' || action.kind === 'close')
                 this._confirmDecision(action, issue, state);
         });
         return item;
@@ -221,7 +221,10 @@ class PingIndicator extends PanelMenu.Button {
                 default: true,
                 action: () => {
                     dialog.close();
-                    this._service?.decide(state?.hubSocket, issue.id, action.gate, action.approve).then(result => {
+                    const sent = action.kind === 'close'
+                        ? this._service?.close(state?.hubSocket, issue.id)
+                        : this._service?.decide(state?.hubSocket, issue.id, action.gate, action.approve);
+                    sent?.then(result => {
                         if (result.status !== 200)
                             this._onProblem?.(`Not done: ${action.label}`, `${issue.name}: ${result.error}`);
                     });

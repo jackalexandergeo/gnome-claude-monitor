@@ -95,7 +95,9 @@ check('the header leads with the warning',
     headerLine(withSources({ chat: { ok: false, detail: 'login expired', at: NOW } }), NOW).startsWith('⚠ chat: login expired  ·  Picked up today'));
 
 // actions
-const full = issueActions(issue({
+// The actions about links, sessions and decisions (every open issue also ends with Won't do).
+const otherActions = fields => issueActions(fields).filter(action => action.kind !== 'close');
+const full = otherActions(issue({
     links: {
         ticket: { url: 'https://git.example/demo/-/issues/12', reference: '#12' },
         mergeRequests: [{ url: 'https://git.example/demo/-/merge_requests/34', reference: '!34' }, { url: 'javascript:alert(1)' }],
@@ -105,25 +107,30 @@ const full = issueActions(issue({
 check('actions in order: thread, ticket, MR, agent',
     full.map(action => action.label).join('|') === 'Thread (chat)|Ticket #12|MR !34|Agent: research');
 check('actions drop non-web URLs and unsafe session ids', full.length === 4);
-check('no url, no thread action', issueActions(issue({ url: null })).length === 0);
-const deciding = issueActions(issue({ url: null, awaiting: ['research', 'ticket', 'everything', 'constructor'] }));
+check('no url, no thread action', otherActions(issue({ url: null })).length === 0);
+const deciding = otherActions(issue({ url: null, awaiting: ['research', 'ticket', 'everything', 'constructor'] }));
 check('each answer says what it will do',
     deciding.every(action => typeof action.consequence === 'string' && action.consequence.length > 10) &&
     deciding.find(action => action.label === "Don't file it").consequence === 'No ticket is filed for this issue.');
 check('a waiting review offers its two answers, and only for known gates',
     deciding.map(action => action.label).join('|') === "Accept the research|Send it back|File the ticket|Don't file it" &&
     deciding.every(action => action.kind === 'decision'));
-const boarded = issueActions(issue({ url: null, onBoard: true }));
+const boarded = otherActions(issue({ url: null, onBoard: true }));
 check('an issue with a card offers to open it on the board',
     boarded.length === 1 && boarded[0].kind === 'board' && boarded[0].label === 'Open on the board' &&
-    issueActions(issue({ url: null, onBoard: 'yes' })).length === 0);
-const reviewing = issueActions(issue({ url: null, awaiting: ['review'] }));
+    otherActions(issue({ url: null, onBoard: 'yes' })).length === 0);
+const closing = issueActions(issue({ url: null, status: 'needs-you' }));
+check("an open issue can be closed as won't do, after a confirmation that says what it does",
+    closing.length === 1 && closing[0].kind === 'close' && closing[0].label === "Won't do" &&
+    closing[0].consequence.includes('its agent stops') &&
+    issueActions(issue({ url: null, status: 'wont-do' })).length === 0 && statusLabel('wont-do') === "won't do");
+const reviewing = otherActions(issue({ url: null, awaiting: ['review'] }));
 check('a low review of the opened MR offers to take it or have it fixed',
     reviewing.map(action => action.label).join('|') === 'Take the MR as it is|Have it fixed' &&
     reviewing.every(action => action.gate === 'review'));
 check('the MR states after the agents have names',
     statusLabel('mr-reviewed') === 'MR reviewed: your turn' && statusLabel('awaiting-review') === 'awaits review');
-const scoping = issueActions(issue({ url: null, awaiting: ['scope'] }));
+const scoping = otherActions(issue({ url: null, awaiting: ['scope'] }));
 check('an issue that may be someone else\'s offers to start anyway or leave it',
     scoping.map(action => action.label).join('|') === 'Start anyway|Leave it to them' &&
     scoping.every(action => action.gate === 'scope'));
@@ -131,7 +138,7 @@ check('the hub socket is taken only as an absolute path',
     parseState(JSON.stringify({ version: 1, hub: { socket: '/run/user/1/pingwatch/hub.sock' } })).hubSocket === '/run/user/1/pingwatch/hub.sock' &&
     parseState(JSON.stringify({ version: 1, hub: { socket: 'relative.sock' } })).hubSocket === null);
 check('session ids that would read as options are dropped',
-    issueActions(issue({ url: null, links: { sessions: [{ role: 'a', sessionId: '--help' }, { role: 'b', sessionId: '-x' }] } })).length === 0);
+    otherActions(issue({ url: null, links: { sessions: [{ role: 'a', sessionId: '--help' }, { role: 'b', sessionId: '-x' }] } })).length === 0);
 
 // notifications
 check('nothing announced on first load', notificationsBetween(null, state({})).length === 0);
