@@ -52,12 +52,10 @@ compiles its settings schema and enables it. To update it later, `git pull` and 
   place, and the windows stay open.
 - **Wayland**: the user logs out and back in.
 
-Then check:
-
-    gnome-extensions info claude-usage@aidan.local     # State: ACTIVE
-
-The top bar shows something like `🤖 1/3 │ ⏱ 13% · 4h13m`: running and total sessions, then
-the 5-hour usage and its reset countdown.
+Then **Ask** the user whether the top bar shows something like `🤖 1/3 │ ⏱ 13% · 4h13m`:
+running and total sessions, then the 5-hour usage and its reset countdown. That is the check:
+`gnome-extensions info claude-usage@aidan.local` can say `State: ACTIVE` right after
+`./install.sh`, before the reload, while nothing shows yet.
 
 ## 4. Place it
 
@@ -124,7 +122,7 @@ the close moves it to Won't do.
 
 | Symptom | Look at |
 |---|---|
-| nothing in the top bar after the reload | `gnome-extensions info claude-usage@aidan.local`; `journalctl --user -b -g claude-usage` |
+| nothing in the top bar after the reload | the reload happened (`State: ACTIVE` alone does not show it); `gnome-extensions info claude-usage@aidan.local`; `journalctl --user -b -g claude-usage` |
 | `⚠ Pull failed` in the dropdown | Claude Code is signed out: the user runs `claude` and signs in |
 | no Issues button | `ls -l ~/.local/state/pingwatch/state.json`: no hub is writing it |
 | Issues shows `–` | the hub has not written for three minutes: `systemctl --user status pingwatch-hub` |
