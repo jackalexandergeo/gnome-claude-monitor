@@ -10,7 +10,7 @@ import { DataService } from './dataService.js';
 import { ClaudeIndicator } from './indicator.js';
 import { PingIndicator } from './pingIndicator.js';
 import { PingService } from './pingService.js';
-import { BannerBook } from './pings.js';
+import { BannerBook, NOTIFICATION_KINDS, notificationTitle } from './pings.js';
 import { leftHalfMargin, shellBox } from './placement.js';
 
 const BOX_ACTORS = {
@@ -41,7 +41,8 @@ export default class ClaudeUsageExtension extends Extension {
         // pingwatch Issues: a button of its own, hidden unless pingwatch runs on this machine.
         this._pingService = new PingService();
         this._pingIndicator = new PingIndicator(this._pingService, this.path,
-            (title, body) => this._notify({ title, body, url: null, pending: [] }));
+            (title, body) => this._notify({ kind: 'problem', title: notificationTitle('problem', title), body, url: null,
+                pending: [] }));
         this._banners = new BannerBook();   // each issue's newest needs-you notification
         Main.panel.addToStatusArea(`${this.uuid}-pings`, this._pingIndicator);
         this._placePingIndicator();
@@ -96,7 +97,7 @@ export default class ClaudeUsageExtension extends Extension {
 
     // One source for every pingwatch notification. The shell destroys a source once its
     // last notification is gone, so it is recreated on demand.
-    _notify({ title, body, url, pending }) {
+    _notify({ kind, title, body, url, pending }) {
         if (!this._pingService)
             return;   // disabled: nothing may outlive disable(), not even a new source
         const ids = (pending ?? []).map(item => item.id);
@@ -113,7 +114,11 @@ export default class ClaudeUsageExtension extends Extension {
             });
             Main.messageTray.add(this._notificationSource);
         }
-        const notification = new MessageTray.Notification({ source: this._notificationSource, title, body });
+        const look = NOTIFICATION_KINDS[kind] ?? NOTIFICATION_KINDS.new;
+        const notification = new MessageTray.Notification({
+            source: this._notificationSource, title, body, iconName: look.icon,
+            urgency: look.urgent ? MessageTray.Urgency.HIGH : MessageTray.Urgency.NORMAL,
+        });
         this._banners.record(notification, ids);
         if (url)
             notification.connect('activated', () => this._pingService?.openURL(url));

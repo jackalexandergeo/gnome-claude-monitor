@@ -4,6 +4,7 @@ import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
     announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit, lastRename,
+    NOTIFICATION_KINDS, notificationTitle,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -147,7 +148,7 @@ const afterRename = state({ issues: [issue({ status: 'in-review', name: '[p]: La
     links: { renamed: [{ from: 'Ticket 12 problem', to: 'Label printer skips a line', why: 'after research' }] } })] });
 const renames = notificationsBetween(beforeRename, afterRename);
 check('a renamed issue is announced with what it was called',
-    renames.length === 1 && renames[0].title === 'Renamed: [p]: Label printer skips a line' &&
+    renames.length === 1 && renames[0].title === '✏️ Renamed: [p]: Label printer skips a line' && renames[0].kind === 'renamed' &&
     renames[0].body === 'Was: [p]: Ticket 12 problem (after research)' &&
     lastRename(afterRename.issues[0]).from === 'Ticket 12 problem' && lastRename(issue({})) === null);
 check('a name that changes without a rename is not announced',
@@ -155,12 +156,28 @@ check('a name that changes without a rename is not announced',
 const triaging = state({ issues: [issue({ status: 'triaging', kind: null })] });
 const triaged = state({ issues: [issue({})] });
 const announced = notificationsBetween(triaging, triaged);
-check('new issue announced once triaged', announced.length === 1 && announced[0].title === 'New issue: [demo-project]: Build server disk full');
+check('new issue announced once triaged', announced.length === 1 && announced[0].title === '🆕 New issue: [demo-project]: Build server disk full' &&
+    announced[0].kind === 'new');
 check('same issue not announced twice', notificationsBetween(triaged, triaged).length === 0);
 check('needs-you announced on transition',
-    notificationsBetween(triaged, state({ issues: [issue({ status: 'needs-you' })] }))[0]?.title.startsWith('Needs you:'));
+    notificationsBetween(triaged, state({ issues: [issue({ status: 'needs-you' })] }))[0]?.title.startsWith('❗ Needs you: '));
 check('dismissed pings are not announced',
     notificationsBetween(state({ issues: [] }), state({ issues: [issue({ kind: 'social', status: 'ignored' })] })).length === 0);
+
+// how each kind of notification looks
+check('every kind has an emoji, an icon, and only needs-you is urgent',
+    Object.values(NOTIFICATION_KINDS).every(look => look.emoji && look.icon.endsWith('-symbolic')) &&
+    Object.entries(NOTIFICATION_KINDS).filter(([, look]) => look.urgent).map(([kind]) => kind).join() === 'needs-you');
+check('a kind without a label is its emoji and the text', notificationTitle('problem', 'Could not close it') === '⚠️ Could not close it');
+const fromSomeone = notificationsBetween(triaging, state({ issues: [issue({ lastPing: { author: 'alex', preview: 'can you check the disk?' } })] }));
+check('a new issue says who asked and what', fromSomeone[0]?.body === '@alex: can you check the disk?');
+const mergeRequestOpen = state({ issues: [issue({ status: 'mr-open', links: { mergeRequests: [{ url: 'https://forge/mr/34', reference: '!34' }] } })] });
+const mergeRequestReviewed = state({ issues: [issue({ status: 'mr-reviewed', links: { mergeRequests: [{ url: 'https://forge/mr/34', reference: '!34' }] } })] });
+const yourTurn = notificationsBetween(mergeRequestOpen, mergeRequestReviewed);
+check('when the agents are done with the MR, it is your turn, and the banner opens the MR',
+    yourTurn.length === 1 && yourTurn[0].kind === 'your-turn' && yourTurn[0].title === '👀 Your turn: [demo-project]: Build server disk full' &&
+    yourTurn[0].body === 'The agents reviewed !34: it is ready for yours' && yourTurn[0].url === 'https://forge/mr/34');
+check('and only once', notificationsBetween(mergeRequestReviewed, mergeRequestReviewed).length === 0);
 
 // the popup when a review drops below the bar
 const waiting = state({ issues: [issue({ status: 'needs-you', question: 'the verifier scored the research 5/10: the cited line does not exist' })] });
@@ -176,10 +193,12 @@ check('the question survives being remembered',
 const many = Array.from({ length: 9 }, (_, index) => ({ title: `t${index}`, body: '', url: 'https://x' }));
 const limited = limitNotifications(many);
 check('a burst is cut to the limit', limited.length === MAX_NOTIFICATIONS_AT_ONCE);
-check('the last one summarizes the rest', limited[limited.length - 1].title === '6 more issue updates');
+check('the last one summarizes the rest',
+    limited[limited.length - 1].title === '📬 6 more issue updates' && limited[limited.length - 1].kind === 'summary');
 check('a small batch passes through', limitNotifications(many.slice(0, 2)).length === 2);
-const burst = [...many.slice(0, 4), { title: 'Needs you: [demo]: Disk full', body: '', url: 'https://x', pending: [{ id: 9, baseline: null }] }];
-check('needs-you survives a folded burst', limitNotifications(burst)[0].title.startsWith('Needs you:'));
+const burst = [...many.slice(0, 4), { kind: 'needs-you', title: notificationTitle('needs-you', '[demo]: Disk full'), body: '',
+    url: 'https://x', pending: [{ id: 9, baseline: null }] }];
+check('needs-you survives a folded burst', limitNotifications(burst)[0].kind === 'needs-you');
 check('the summary carries what the folded ones were pending for',
     limitNotifications(burst.map((notification, index) => ({ ...notification, pending: notification.pending ?? [{ id: index, baseline: null }] })))
         .at(-1).pending.length === 2);

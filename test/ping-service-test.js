@@ -75,7 +75,7 @@ const announced = [];
 afterUnlock.connect(payload => announced.push(...payload.notifications));
 await afterUnlock.refreshNow();
 check('a change made while locked is announced after unlock',
-    announced.length === 1 && announced[0].title === 'Needs you: [demo]: Disk full');
+    announced.length === 1 && announced[0].title === '❗ Needs you: [demo]: Disk full');
 
 // That banner was never dismissed and the screen locks again: the shell destroys it, so
 // after the next unlock it must be raised again. Once dismissed, it stays announced.
@@ -152,7 +152,7 @@ const raisedAtUnlock = [];
 unlocked.connect(payload => raisedAtUnlock.push(...payload.notifications));
 await unlocked.refreshNow();
 check('dismissing an older banner leaves a newer needs-you pending',
-    raisedAtUnlock.length === 1 && raisedAtUnlock[0].title.startsWith('Needs you:'));
+    raisedAtUnlock.length === 1 && raisedAtUnlock[0].kind === 'needs-you');
 unlocked.stop();
 
 // Only an issue's newest banner settles it: dismissing an older one (its question has
@@ -310,7 +310,7 @@ busy.connect(payload => {
 await busy.refreshNow();
 await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => resolve() ?? GLib.SOURCE_REMOVE));
 check('a change written mid-refresh is picked up right after', seen.join(',') === 'new,needs-you');
-check('and announced once', raised.length === 1 && raised[0].title.startsWith('Needs you:'));
+check('and announced once', raised.length === 1 && raised[0].kind === 'needs-you');
 busy.stop();
 
 

@@ -15,7 +15,23 @@ export const NEEDS_YOU_STATUSES = new Set(['needs-you']);
 
 // More changes than this at once (a long lock, a week away) become one summary banner.
 export const MAX_NOTIFICATIONS_AT_ONCE = 4;
-const NEEDS_YOU_PREFIX = 'Needs you: ';
+
+// What a notification is about sets its look: an emoji leading the title (it shows wherever
+// the banner does, the lock screen's list included), an icon, and whether it is urgent.
+export const NOTIFICATION_KINDS = {
+    'needs-you': { emoji: '❗', label: 'Needs you', icon: 'dialog-warning-symbolic', urgent: true },
+    'your-turn': { emoji: '👀', label: 'Your turn', icon: 'emblem-default-symbolic', urgent: false },
+    'new': { emoji: '🆕', label: 'New issue', icon: 'mail-unread-symbolic', urgent: false },
+    'renamed': { emoji: '✏️', label: 'Renamed', icon: 'document-edit-symbolic', urgent: false },
+    'summary': { emoji: '📬', label: null, icon: 'view-list-symbolic', urgent: false },
+    'problem': { emoji: '⚠️', label: null, icon: 'dialog-error-symbolic', urgent: false },
+};
+
+/** A notification's title: its kind's emoji and label, then the text. */
+export function notificationTitle(kind, text) {
+    const look = NOTIFICATION_KINDS[kind];
+    return look.label ? `${look.emoji} ${look.label}: ${text}` : `${look.emoji} ${text}`;
+}
 
 const STATUS_LABELS = {
     'triaging': 'triaging',
@@ -271,20 +287,30 @@ export function notificationsBetween(previous, next) {
             // the status before, but this issue's kind, so that once it is answered it never
             // comes back as a "New issue" (the needs-you banner stood in for that one).
             notifications.push({
-                title: `${NEEDS_YOU_PREFIX}${issue.name}`, body: question || issue.lastPing?.preview || '', url: issue.url,
+                kind: 'needs-you', title: notificationTitle('needs-you', issue.name),
+                body: question || issue.lastPing?.preview || '', url: issue.url,
                 pending: [{
                     id: issue.id,
                     baseline: { status: old?.status ?? null, kind: issue.kind, question: old ? old.question ?? null : null },
                 }],
             });
         } else if (issue.kind === 'issue' && !(old && old.kind === 'issue')) {
-            const author = issue.lastPing?.author ? ` from @${issue.lastPing.author}` : '';
-            notifications.push({ title: `New issue: ${issue.name}`, body: `Picked up${author}`, url: issue.url, pending: [] });
+            const author = issue.lastPing?.author ? `@${issue.lastPing.author}` : null;
+            const preview = issue.lastPing?.preview || '';
+            notifications.push({ kind: 'new', title: notificationTitle('new', issue.name),
+                body: author ? (preview ? `${author}: ${preview}` : `Picked up from ${author}`) : preview || 'Picked up',
+                url: issue.url, pending: [] });
+        } else if (old && old.status !== 'mr-reviewed' && issue.status === 'mr-reviewed') {
+            // The agents are done with the MR: it waits on the user's own review now.
+            const mergeRequest = (issue.links?.mergeRequests ?? []).find(item => item?.url);
+            notifications.push({ kind: 'your-turn', title: notificationTitle('your-turn', issue.name),
+                body: `The agents reviewed ${mergeRequest?.reference || 'the MR'}: it is ready for yours`,
+                url: mergeRequest?.url || issue.url, pending: [] });
         } else if (old && old.kind === 'issue' && old.name !== issue.name && lastRename(issue)) {
             // The agents found out what it is: say so, or the user no longer knows which issue it is.
             const rename = lastRename(issue);
-            notifications.push({ title: `Renamed: ${issue.name}`, body: `Was: ${old.name} (${rename.why || 'renamed'})`,
-                url: issue.url, pending: [] });
+            notifications.push({ kind: 'renamed', title: notificationTitle('renamed', issue.name),
+                body: `Was: ${old.name} (${rename.why || 'renamed'})`, url: issue.url, pending: [] });
         }
     }
     return notifications;
@@ -298,14 +324,15 @@ export function limitNotifications(notifications) {
     if (notifications.length <= MAX_NOTIFICATIONS_AT_ONCE)
         return notifications;
     const ordered = [
-        ...notifications.filter(notification => notification.title.startsWith(NEEDS_YOU_PREFIX)),
-        ...notifications.filter(notification => !notification.title.startsWith(NEEDS_YOU_PREFIX)),
+        ...notifications.filter(notification => notification.kind === 'needs-you'),
+        ...notifications.filter(notification => notification.kind !== 'needs-you'),
     ];
     notifications = ordered;
     const shown = notifications.slice(0, MAX_NOTIFICATIONS_AT_ONCE - 1);
     const folded = notifications.slice(shown.length);
     return [...shown, {
-        title: `${folded.length} more issue updates`, body: 'Open the Issues menu to see them', url: null,
+        kind: 'summary', title: notificationTitle('summary', `${folded.length} more issue updates`),
+        body: 'Open the Issues menu to see them', url: null,
         pending: folded.flatMap(notification => notification.pending ?? []),
     }];
 }
