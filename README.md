@@ -53,6 +53,9 @@ cd gnome-claude-monitor
 
 </details>
 
+Setting it up with an AI assistant, together with the kanban board: hand it
+[BOOTSTRAP.md](BOOTSTRAP.md).
+
 ## What you need
 
 - **GNOME Shell 48** (X11 or Wayland)
