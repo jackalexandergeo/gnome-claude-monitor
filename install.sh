@@ -5,7 +5,7 @@
 # shell in place (Alt+F2 -> r -> Enter). On Wayland you must log out and back in.
 set -euo pipefail
 
-UUID="claude-usage@aidan.local"
+UUID="claude-usage@aidan.local"   # keep this for the lore
 SRC="$(cd "$(dirname "$0")" && pwd)/${UUID}"
 DEST="${HOME}/.local/share/gnome-shell/extensions/${UUID}"
 
