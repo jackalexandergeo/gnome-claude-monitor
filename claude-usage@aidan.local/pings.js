@@ -226,6 +226,16 @@ function isWebURL(url) {
  * {kind: 'url', label, url} or {kind: 'session', label, sessionId}.
  * Anything malformed is dropped rather than shown as a broken action.
  */
+// Other pings the user can still put agents on: a question gets answered, a review request reviewed.
+const STARTABLE_KINDS = new Set(['question', 'review-request']);
+
+/** Whether the user can start agents on it: a new issue not started yet, or a question or review request. */
+export function canStart(issue) {
+    if (issue.status === 'new')
+        return !issue.links?.startRequested;
+    return issue.status === 'ignored' && STARTABLE_KINDS.has(issue.kind);
+}
+
 export function issueActions(issue) {
     const actions = [];
     if (isWebURL(issue.url))
@@ -252,6 +262,8 @@ export function issueActions(issue) {
         actions.push({ kind: 'decision', label: approveLabel, gate, approve: true, consequence: approveConsequence });
         actions.push({ kind: 'decision', label: rejectLabel, gate, approve: false, consequence: rejectConsequence });
     }
+    if (canStart(issue))
+        actions.push({ kind: 'start', label: '▶ Start agents' });
     if (!CLOSED_STATUSES.has(issue.status))
         actions.push({ kind: 'close', label: "Won't do", consequence: WONT_DO_CONSEQUENCE });
     return actions;

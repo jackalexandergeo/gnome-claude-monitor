@@ -296,6 +296,16 @@ export class PingService {
         return { status, error };
     }
 
+    /** Start agents on an issue, or on a question or review request. Resolves to { status, error }. */
+    async startIssue(socketPath, issueId) {
+        if (!Number.isInteger(issueId))
+            return { status: 0, error: 'pingwatch did not say which issue this is' };
+        const { status, error } = await this._post(socketPath, `/v1/issues/${issueId}/start`, {}, `starting issue ${issueId}`);
+        if (status !== 0)
+            this.refreshNow();
+        return { status, error: status === 202 ? null : error };   // 202: started, or queued behind the others
+    }
+
     /** Close an issue as won't do (out of scope). Resolves to { status, error }. */
     async close(socketPath, issueId) {
         if (!Number.isInteger(issueId))

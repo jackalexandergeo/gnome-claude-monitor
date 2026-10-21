@@ -235,6 +235,39 @@ unlocked.stop();
     listener.close();
 }
 
+// startIssue() posts to the issue's start path; the hub's 202 (started, or queued) is not an error.
+{
+    const socketPath = GLib.build_filenamev([stateHome, 'start-hub.sock']);
+    const listener = new Gio.SocketListener();
+    listener.add_address(Gio.UnixSocketAddress.new(socketPath), Gio.SocketType.STREAM, Gio.SocketProtocol.DEFAULT, null);
+    let request = '';
+    listener.accept_async(null, (_listener, result) => {
+        const connection = listener.accept_finish(result)[0];
+        const readMore = () => connection.get_input_stream().read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null,
+            (input, readResult) => {
+                const chunk = input.read_bytes_finish(readResult).toArray();
+                request += new TextDecoder().decode(chunk);
+                const headerEnd = request.indexOf('\r\n\r\n');
+                const length = Number(/content-length: *(\d+)/i.exec(request)?.[1] ?? 0);
+                if (chunk.length > 0 && (headerEnd < 0 || request.length - headerEnd - 4 < length)) {
+                    readMore();
+                    return;
+                }
+                const body = '{"queued": true, "ahead": 1}';
+                connection.get_output_stream().write_all(new TextEncoder().encode(
+                    `HTTP/1.0 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\n\r\n${body}`), null);
+                connection.close(null);
+            });
+        readMore();
+    });
+    const starting = new PingService();
+    const answer = await starting.startIssue(socketPath, 8);
+    check('startIssue POSTs to the issue\'s start path', request.startsWith('POST /v1/issues/8/start'));
+    check('and a 202 is a start, not an error', answer.status === 202 && answer.error === null);
+    starting.stop();
+    listener.close();
+}
+
 // openOnBoard() asks the hub for a one-time link each time and opens only a web address.
 {
     const socketPath = GLib.build_filenamev([stateHome, 'board-hub.sock']);

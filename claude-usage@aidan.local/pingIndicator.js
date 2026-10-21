@@ -184,6 +184,10 @@ class PingIndicator extends PanelMenu.Button {
                 row.accessible_name = `${text}, ${age.text.slice(3)}`;
             }
             this._otherPings.menu.addMenuItem(row);
+            // one row more, not a submenu: GNOME's menus do not nest them
+            const start = issueActions(issue).find(action => action.kind === 'start');
+            if (start)
+                this._otherPings.menu.addMenuItem(this._actionItem({ ...start, label: `      ${start.label}` }, issue, state));
         }
     }
 
@@ -201,6 +205,11 @@ class PingIndicator extends PanelMenu.Button {
                 });
             else if (action.kind === 'decision' || action.kind === 'close')
                 this._confirmDecision(action, issue, state);
+            else if (action.kind === 'start')
+                this._service?.startIssue(state?.hubSocket, issue?.id).then(result => {
+                    if (result.error)
+                        this._onProblem?.('Could not start the agents', `${issue.name}: ${result.error}`);
+                });
         });
         return item;
     }

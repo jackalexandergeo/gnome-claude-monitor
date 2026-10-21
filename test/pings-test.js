@@ -4,7 +4,7 @@ import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
     announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit, lastRename,
-    NOTIFICATION_KINDS, notificationTitle,
+    NOTIFICATION_KINDS, notificationTitle, canStart,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -97,7 +97,7 @@ check('the header leads with the warning',
 
 // actions
 // The actions about links, sessions and decisions (every open issue also ends with Won't do).
-const otherActions = fields => issueActions(fields).filter(action => action.kind !== 'close');
+const otherActions = fields => issueActions(fields).filter(action => !['close', 'start'].includes(action.kind));
 const full = otherActions(issue({
     links: {
         ticket: { url: 'https://git.example/demo/-/issues/12', reference: '#12' },
@@ -163,6 +163,16 @@ check('needs-you announced on transition',
     notificationsBetween(triaged, state({ issues: [issue({ status: 'needs-you' })] }))[0]?.title.startsWith('❗ Needs you: '));
 check('dismissed pings are not announced',
     notificationsBetween(state({ issues: [] }), state({ issues: [issue({ kind: 'social', status: 'ignored' })] })).length === 0);
+
+// starting agents from the menu
+check('a new issue can be started once', canStart(issue({})) && !canStart(issue({ links: { startRequested: true } })));
+check('so can a question or a review request in Other pings',
+    canStart(issue({ status: 'ignored', kind: 'review-request' })) && canStart(issue({ status: 'ignored', kind: 'question' })));
+check('but not chatter, nor an issue already being worked on',
+    !canStart(issue({ status: 'ignored', kind: 'social' })) && !canStart(issue({ status: 'researching' })));
+check('the menu offers it before won\'t do',
+    issueActions(issue({ url: null })).map(action => action.kind).join() === 'start,close' &&
+    issueActions(issue({ url: null, status: 'ignored', kind: 'review-request' })).map(action => action.kind).join() === 'start');
 
 // how each kind of notification looks
 check('every kind has an emoji, an icon, and only needs-you is urgent',
