@@ -13,7 +13,7 @@ import Gio from 'gi://Gio';
 import Soup from 'gi://Soup?version=3.0';
 
 import {
-    parseState, notificationsBetween, limitNotifications, announcedMap, stateFromAnnounced,
+    parseState, notificationsBetween, limitNotifications, announcedMap, stateFromAnnounced, boardColumns, focusFirst,
 } from './pings.js';
 
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
@@ -22,6 +22,7 @@ Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
 
 const STATE_DIR = GLib.build_filenamev([GLib.get_user_state_dir(), 'pingwatch']);
 const STATE_FILE = 'state.json';
+const ITEMS_FILE = 'items.json';   // pingwatch's board sync: each issue's card and column
 const ANNOUNCED_DIR = GLib.build_filenamev([GLib.get_user_state_dir(), 'claude-usage']);
 const ANNOUNCED_FILE = 'pings-announced.json';
 const REFRESH_SECS = 15;       // re-read even without a change event: staleness + late-created dir
@@ -112,7 +113,8 @@ export class PingService {
         try {
             this._monitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, this._cancellable);
             this._monitorId = this._monitor.connect('changed', (_monitor, file, otherFile) => {
-                if (file?.get_basename() === STATE_FILE || otherFile?.get_basename() === STATE_FILE)
+                const names = [file?.get_basename(), otherFile?.get_basename()];
+                if (names.includes(STATE_FILE) || names.includes(ITEMS_FILE))
                     this._onChanged();
             });
         } catch (error) {
@@ -161,6 +163,8 @@ export class PingService {
         try {
             const [contents] = await file.load_contents_async(this._cancellable);
             next = parseState(this._decoder.decode(contents));
+            if (next)
+                next.issues = focusFirst(next.issues, await this._loadColumns());
         } catch (error) {
             if (error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
                 return;
@@ -198,6 +202,17 @@ export class PingService {
         const payload = { state, now: Date.now(), notifications };
         for (const listener of this._listeners)
             listener(payload);
+    }
+
+    // No board sync (or no board): no columns, and the issues keep the hub's order.
+    async _loadColumns() {
+        try {
+            const file = Gio.File.new_for_path(GLib.build_filenamev([STATE_DIR, ITEMS_FILE]));
+            const [contents] = await file.load_contents_async(this._cancellable);
+            return boardColumns(this._decoder.decode(contents));
+        } catch {
+            return new Map();
+        }
     }
 
     async _loadAnnounced() {

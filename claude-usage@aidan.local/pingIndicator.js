@@ -107,14 +107,17 @@ class PingIndicator extends PanelMenu.Button {
             // The name is capped and ellipsizes; the status is its own label so it always shows.
             const item = new PopupMenu.PopupSubMenuMenuItem(issue.name);
             item.label.add_style_class_name('pingwatch-issue-label');
+            const shown = issue.focus ? issue.boardColumn : statusLabel(issue.status);
             const status = new St.Label({
-                text: `·  ${statusLabel(issue.status)}`,
+                text: `·  ${shown}`,
                 style_class: 'pingwatch-issue-status',
                 y_align: Clutter.ActorAlign.CENTER,
             });
             item.insert_child_above(status, item.label);
             // label_actor is only the name; screen readers should hear the status too
-            item.accessible_name = `${issue.name}, ${statusLabel(issue.status)}`;
+            item.accessible_name = `${issue.name}, ${shown}`;
+            if (issue.focus)
+                status.style = EMPHASIS_STYLE.active;
             if (needsYou(issue)) {
                 item.label.style = EMPHASIS_STYLE.alert;
                 status.style = EMPHASIS_STYLE.alert;

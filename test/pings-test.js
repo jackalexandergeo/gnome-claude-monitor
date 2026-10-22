@@ -4,7 +4,7 @@ import {
     parseState, isStale, panelSummary, headerLine, issueActions, notificationsBetween,
     statusLabel, formatAgo, STALE_AFTER_MS, limitNotifications, MAX_NOTIFICATIONS_AT_ONCE,
     announcedMap, stateFromAnnounced, sourceWarnings, BannerBook, truncate, usageLine, agentsOfLimit, lastRename,
-    NOTIFICATION_KINDS, notificationTitle, canStart,
+    NOTIFICATION_KINDS, notificationTitle, canStart, boardColumns, focusFirst,
 } from '../claude-usage@aidan.local/pings.js';
 
 let failures = 0;
@@ -270,6 +270,15 @@ check('truncate counts an emoji as one character, at either alignment',
     }));
 check('formatAgo', formatAgo(30_000) === 'just now' && formatAgo(5 * 60_000) === '5m ago' && formatAgo(3 * 3600_000) === '3h ago');
 
+print('focusFirst');
+{
+    const columns = boardColumns(JSON.stringify({ posted: { 1: { column: 'Researching' }, 2: { column: 'Clauding' }, 4: {} } }));
+    const ordered = focusFirst([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }], columns);
+    check('a Clauding issue leads, the rest keep their order', ordered.map(issue => issue.id).join() === '2,1,3,4');
+    check('it carries its column and focus', ordered[0].boardColumn === 'Clauding' && ordered[0].focus && !ordered[1].focus);
+    check('no column when the sync has none', ordered[2].boardColumn === null && ordered[3].boardColumn === null);
+    check('an unreadable items file means no columns', boardColumns('{torn').size === 0);
+}
 print('');
 print(failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`);
 if (failures > 0)

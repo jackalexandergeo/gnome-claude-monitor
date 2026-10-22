@@ -151,6 +151,30 @@ export function isStale(state, now) {
     return !state || now - state.updatedAt > STALE_AFTER_MS;
 }
 
+// Board columns whose issues lead the list: where an agent is writing code.
+export const FOCUS_COLUMNS = ['Clauding', 'Coding', 'In development', 'Development'];
+
+/** Each issue's column on the board, by issue id, from pingwatch's board sync (items.json). */
+export function boardColumns(text) {
+    try {
+        const posted = JSON.parse(text)?.posted || {};
+        return new Map(Object.entries(posted)
+            .filter(([, entry]) => typeof entry?.column === 'string')
+            .map(([id, entry]) => [Number(id), entry.column]));
+    } catch {
+        return new Map();
+    }
+}
+
+/** The issues with their board column; those in a focus column first, the rest in the hub's order. */
+export function focusFirst(issues, columns) {
+    const placed = issues.map(issue => {
+        const boardColumn = columns.get(issue.id) ?? null;
+        return { ...issue, boardColumn, focus: FOCUS_COLUMNS.includes(boardColumn) };
+    });
+    return [...placed.filter(issue => issue.focus), ...placed.filter(issue => !issue.focus)];
+}
+
 export function needsYou(issue) {
     return NEEDS_YOU_STATUSES.has(issue.status);
 }
